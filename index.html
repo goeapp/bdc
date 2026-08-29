@@ -14,7 +14,29 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔎</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
-  index_bdc_v1.html — v1.0.0 (29-ago-2026)
+  index_bdc_v1_2.html — v1.2.0 (29-ago-2026)
+
+  QUÉ CAMBIÓ EN v1.2 (respecto a v1.1) — feedback de la primera
+  prueba real, conversado antes de codear:
+   - Fix: una etiqueta "-" suelta que aparecía en Facetas (viene de
+     nombres de archivo con guión como separador de título) — filtro
+     client-side + fix en el backend (extraerEtiquetasAutomaticas_,
+     bdc_gas_v1_13.gs).
+   - Cada grupo de Facetas (Etiquetas / Carpetas) pasa a tener su
+     propio scroll interno (~200px) con un divisor visible entre
+     grupos, para no scrollear todo el panel para llegar a Carpetas.
+   - Cambio de comportamiento del buscador (el más grande de los 3):
+     ya NO lista todo al abrir la obra, ni busca en vivo mientras se
+     escribe. Al entrar a la obra se pide un resumen liviano
+     (obtenerResumenObra, bdc_gas_v1_13.gs) que puebla Facetas de
+     entrada — se puede filtrar por Etiqueta/Carpeta ANTES de
+     escribir nada, estilo herramientas de búsqueda de Chrome. La
+     lista de Resultados queda vacía hasta que hay un criterio real:
+     un término + Enter/botón "Buscar", o tildar una faceta. Sin
+     criterio, no se le pega al backend — pensado para escalar a
+     400+ documentos sin traer todo de una.
+   - Las facetas se cargan UNA vez al entrar a la obra (del resumen)
+     y no se recalculan por cada búsqueda.
 
   Primera versión del frontend de BDC. Diseño conversado con Ale
   antes de codear (adjuntó index_v14_1.html de MdT + captura):
@@ -312,8 +334,9 @@ input { font-family: inherit; }
 
 /* ── Buscador ─────────────────────────────────── */
 #buscador-wrap { padding: 12px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+#buscador-row { display: flex; gap: 8px; }
 #input-buscar {
-  width        : 100%;
+  flex         : 1;
   padding      : 10px 14px;
   border       : 1.5px solid var(--border);
   border-radius: var(--radius-sm);
@@ -321,6 +344,18 @@ input { font-family: inherit; }
   transition   : border-color .15s;
 }
 #input-buscar:focus { outline: none; border-color: var(--accent); }
+#btn-buscar {
+  padding      : 10px 18px;
+  border       : none;
+  border-radius: var(--radius-sm);
+  background   : var(--accent);
+  color        : #fff;
+  font-size    : .82rem;
+  font-weight  : 600;
+  flex-shrink  : 0;
+  transition   : background .15s;
+}
+#btn-buscar:hover { background: #b45309; }
 #buscar-contador { font-size: .72rem; color: var(--muted); margin-top: 8px; }
 
 /* ── Lista de resultados ─────────────────────── */
@@ -367,6 +402,8 @@ input { font-family: inherit; }
   font-size : .82rem;
   padding   : 40px 20px;
 }
+.resultados-inicial { line-height: 1.6; }
+.resultados-inicial .total-docs { font-weight: 600; color: var(--text); }
 
 /* ─────────────────────────────────────────────────
    RESIZER (mismo patrón visual que MdT)
@@ -394,7 +431,8 @@ input { font-family: inherit; }
    PANEL FACETAS
 ───────────────────────────────────────────────── */
 #facetas-body { flex: 1; overflow-y: auto; padding: 4px 16px 16px; }
-.faceta-grupo { margin-bottom: 20px; }
+.faceta-grupo { margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.faceta-grupo:last-child { border-bottom: none; margin-bottom: 0; }
 .faceta-grupo-titulo {
   font-size     : .67rem;
   font-weight   : 600;
@@ -416,7 +454,7 @@ input { font-family: inherit; }
   display   : none;
 }
 .faceta-limpiar.visible { display: inline; }
-.faceta-lista { display: flex; flex-direction: column; gap: 4px; }
+.faceta-lista { display: flex; flex-direction: column; gap: 4px; max-height: 200px; overflow-y: auto; padding-right: 2px; }
 .faceta-chip {
   display      : flex;
   align-items  : center;
@@ -555,11 +593,14 @@ input { font-family: inherit; }
     <!-- PANEL RESULTADOS -->
     <div id="panel-resultados">
       <div id="buscador-wrap">
-        <input type="text" id="input-buscar" placeholder="Buscar en el pliego, circulares, especificaciones...">
+        <div id="buscador-row">
+          <input type="text" id="input-buscar" placeholder="Buscar en el pliego, circulares, especificaciones...">
+          <button id="btn-buscar" onclick="ejecutarBusqueda()">Buscar</button>
+        </div>
         <div id="buscar-contador"></div>
       </div>
       <div id="lista-resultados">
-        <div class="resultados-cargando">Cargando documentos...</div>
+        <div class="resultados-cargando">Cargando...</div>
       </div>
     </div>
 
@@ -608,9 +649,11 @@ input { font-family: inherit; }
    ============================================================ */
 
 // ── CONFIG ──────────────────────────────────────────────────
-// TODO: completar con la URL real del deploy web de BDC
-// (Implementar → Nueva implementación → Aplicación web) — todavía
-// no existe, BDC no tiene deploy web hecho a esta fecha (29-ago-2026).
+// URL real del deploy web de BDC (Implementar → Nueva implementación
+// → Aplicación web), completada 29-ago-2026. Regla de deploy: usar
+// siempre "Gestionar implementaciones → Nueva versión" sobre esta
+// misma implementación de acá en adelante, nunca "Nueva implementación"
+// desde cero, para que esta URL /exec no cambie.
 const BDC_GAS_URL = 'https://script.google.com/macros/s/AKfycbyueo3tUNezvg_ovzliXhWJ6jRjC3-DqotDXYmKiH-RdlTLSr6hNewiZmYaEu75nPjoRQ/exec';
 
 const SESION_KEY   = 'bdc_sesion';
@@ -624,7 +667,6 @@ let cooldownInterval    = null;
 let obraActual          = null; // { obraId, nombreObra, esAdminObra }
 let resultadosActuales  = [];   // último resultado crudo de buscarEnObra_
 let facetasSeleccionadas = { etiquetas: new Set(), carpetas: new Set() };
-let debounceBuscar      = null;
 
 // ── HELPERS DE FETCH ────────────────────────────────────────
 async function llamarBackend(action, params) {
@@ -926,51 +968,80 @@ function mostrarBuscador() {
   document.getElementById('input-buscar').value = '';
   facetasSeleccionadas.etiquetas.clear();
   facetasSeleccionadas.carpetas.clear();
+  resultadosActuales = [];
   configurarResizerFacetas();
   configurarInputBuscar();
-  buscar('');
+  mostrarEstadoInicial();
+  cargarResumenObra();
 }
 
 function configurarInputBuscar() {
   const input = document.getElementById('input-buscar');
-  input.oninput = function () {
-    clearTimeout(debounceBuscar);
-    debounceBuscar = setTimeout(function () {
-      buscar(input.value.trim());
-    }, 350);
+  // v1.2: ya no busca en vivo mientras se escribe — solo con Enter
+  // o el botón "Buscar" (decisión conversada: escala mejor a 400+
+  // documentos que una búsqueda por cada tecla).
+  input.onkeydown = function (e) {
+    if (e.key === 'Enter') ejecutarBusqueda();
   };
 }
 
+function ejecutarBusqueda() {
+  const termino = document.getElementById('input-buscar').value.trim();
+  buscar(termino);
+}
+
+function mostrarEstadoInicial() {
+  const totalTxt = resumenObra ? ('<span class="total-docs">' + resumenObra.totalDocumentos + '</span> documento' + (resumenObra.totalDocumentos === 1 ? '' : 's') + ' indexados en esta obra.') : 'Cargando...';
+  document.getElementById('lista-resultados').innerHTML =
+    '<div class="resultados-vacio resultados-inicial">' + totalTxt + '<br>Escribí un término y presioná Enter, o elegí un filtro a la derecha.</div>';
+  document.getElementById('buscar-contador').textContent = '';
+}
+
+// ── RESUMEN DE LA OBRA (puebla Facetas antes de buscar nada) ───
+let resumenObra = null;
+
+async function cargarResumenObra() {
+  try {
+    const r = await llamarBackend('obtenerResumenObra', { obraId: obraActual.obraId });
+    if (!r.ok) {
+      document.getElementById('faceta-etiquetas').innerHTML = '<div class="facetas-vacio">No se pudo cargar.</div>';
+      document.getElementById('faceta-carpetas').innerHTML = '<div class="facetas-vacio">No se pudo cargar.</div>';
+      return;
+    }
+    resumenObra = r;
+    renderFacetas();
+    mostrarEstadoInicial();
+  } catch (err) {
+    document.getElementById('faceta-etiquetas').innerHTML = '<div class="facetas-vacio">Sin conexión.</div>';
+    document.getElementById('faceta-carpetas').innerHTML = '<div class="facetas-vacio">Sin conexión.</div>';
+  }
+}
+
 async function buscar(termino) {
+  const etiquetas = Array.from(facetasSeleccionadas.etiquetas);
+  const carpetas = Array.from(facetasSeleccionadas.carpetas);
+
+  if (!termino && etiquetas.length === 0 && carpetas.length === 0) {
+    resultadosActuales = [];
+    mostrarEstadoInicial();
+    return;
+  }
+
   document.getElementById('lista-resultados').innerHTML = '<div class="resultados-cargando">Buscando...</div>';
   try {
-    const r = await llamarBackend('buscar', { obraId: obraActual.obraId, termino: termino, email: emailActual });
+    const r = await llamarBackend('buscar', {
+      obraId: obraActual.obraId, termino: termino, email: emailActual,
+      etiquetas: etiquetas, carpetas: carpetas
+    });
     if (!r.ok) {
       document.getElementById('lista-resultados').innerHTML = '<div class="resultados-vacio">Error al buscar.</div>';
       return;
     }
     resultadosActuales = r.resultados;
-    facetasSeleccionadas.etiquetas.clear();
-    facetasSeleccionadas.carpetas.clear();
-    renderFacetas();
     renderResultados();
   } catch (err) {
     document.getElementById('lista-resultados').innerHTML = '<div class="resultados-vacio">Sin conexión. Revisá tu internet e intentá de nuevo.</div>';
   }
-}
-
-function resultadosFiltrados() {
-  const etq = facetasSeleccionadas.etiquetas;
-  const carp = facetasSeleccionadas.carpetas;
-  return resultadosActuales.filter(function (r) {
-    if (etq.size > 0) {
-      const etiquetasFila = etiquetasDeFila(r);
-      const matchEtq = etiquetasFila.some(function (e) { return etq.has(e); });
-      if (!matchEtq) return false;
-    }
-    if (carp.size > 0 && !carp.has(r.carpeta || '')) return false;
-    return true;
-  });
 }
 
 function etiquetasDeFila(r) {
@@ -979,19 +1050,17 @@ function etiquetasDeFila(r) {
 
 function renderResultados() {
   const cont = document.getElementById('lista-resultados');
-  const filtrados = resultadosFiltrados();
 
   document.getElementById('buscar-contador').textContent =
-    filtrados.length + (filtrados.length === 1 ? ' resultado' : ' resultados') +
-    (filtrados.length !== resultadosActuales.length ? ' (de ' + resultadosActuales.length + ')' : '');
+    resultadosActuales.length + (resultadosActuales.length === 1 ? ' resultado' : ' resultados');
 
-  if (filtrados.length === 0) {
+  if (resultadosActuales.length === 0) {
     cont.innerHTML = '<div class="resultados-vacio">No se encontraron documentos.</div>';
     return;
   }
 
   cont.innerHTML = '';
-  filtrados.forEach(function (r) {
+  resultadosActuales.forEach(function (r) {
     const card = document.createElement('div');
     card.className = 'resultado-card';
 
@@ -1030,37 +1099,36 @@ function extraerIdDrive(url) {
 }
 
 // ── FACETAS ──────────────────────────────────────────────────
-function renderFacetas() {
-  renderFacetaGrupo('etiquetas', 'faceta-etiquetas', 'limpiar-etiquetas');
-  renderFacetaGrupo('carpetas', 'faceta-carpetas', 'limpiar-carpetas');
+// v1.2: las facetas vienen del resumen de la obra (obtenerResumenObra),
+// cargado UNA vez al entrar — no se recalculan por cada búsqueda.
+// Descartan valores sin ninguna letra/número (ej. un "-" suelto),
+// mismo criterio que el fix del backend en extraerEtiquetasAutomaticas_.
+function esValorFacetaValido(v) {
+  return /[0-9A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(v || '');
 }
 
-function renderFacetaGrupo(tipo, contId, limpiarBtnId) {
+function renderFacetas() {
+  if (!resumenObra) return;
+  renderFacetaGrupo(resumenObra.etiquetas, 'etiquetas', 'faceta-etiquetas', 'limpiar-etiquetas');
+  renderFacetaGrupo(resumenObra.carpetas, 'carpetas', 'faceta-carpetas', 'limpiar-carpetas');
+}
+
+function renderFacetaGrupo(items, tipo, contId, limpiarBtnId) {
   const cont = document.getElementById(contId);
-  const conteo = {};
+  const validos = (items || []).filter(function (it) { return esValorFacetaValido(it.nombre); });
 
-  resultadosActuales.forEach(function (r) {
-    const valores = tipo === 'etiquetas' ? etiquetasDeFila(r) : [r.carpeta || ''];
-    valores.forEach(function (v) {
-      if (!v) return;
-      conteo[v] = (conteo[v] || 0) + 1;
-    });
-  });
-
-  const valoresOrdenados = Object.keys(conteo).sort(function (a, b) { return conteo[b] - conteo[a]; });
-
-  if (valoresOrdenados.length === 0) {
+  if (validos.length === 0) {
     cont.innerHTML = '<div class="facetas-vacio">Sin datos.</div>';
     return;
   }
 
   cont.innerHTML = '';
-  valoresOrdenados.forEach(function (valor) {
+  validos.forEach(function (it) {
     const chip = document.createElement('div');
-    const seleccionado = facetasSeleccionadas[tipo].has(valor);
+    const seleccionado = facetasSeleccionadas[tipo].has(it.nombre);
     chip.className = 'faceta-chip' + (seleccionado ? ' activa' : '');
-    chip.innerHTML = '<span>' + escapeHtml(valor) + '</span><span class="faceta-chip-count">' + conteo[valor] + '</span>';
-    chip.onclick = function () { toggleFaceta(tipo, valor); };
+    chip.innerHTML = '<span>' + escapeHtml(it.nombre) + '</span><span class="faceta-chip-count">' + it.cantidad + '</span>';
+    chip.onclick = function () { toggleFaceta(tipo, it.nombre); };
     cont.appendChild(chip);
   });
 
@@ -1071,13 +1139,13 @@ function toggleFaceta(tipo, valor) {
   const set = facetasSeleccionadas[tipo];
   if (set.has(valor)) set.delete(valor); else set.add(valor);
   renderFacetas();
-  renderResultados();
+  ejecutarBusqueda();
 }
 
 function limpiarFaceta(tipo) {
   facetasSeleccionadas[tipo].clear();
   renderFacetas();
-  renderResultados();
+  ejecutarBusqueda();
 }
 
 // ── RESIZER (facetas) ───────────────────────────────────────
