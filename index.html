@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BDC — Buscador Documental de Contrato</title>
+<!-- PWA (patrón estándar del stack — falta agregar manifest.json + íconos reales al repo) -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f172a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BDC">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔎</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
+<!--
+  index_bdc_v1.html — v1.0.0 (29-ago-2026)
+
+  Primera versión del frontend de BDC. Diseño conversado con Ale
+  antes de codear (adjuntó index_v14_1.html de MdT + captura):
+  reutiliza el sistema de diseño real de Mesa de Trabajo (Bebas
+  Neue + DM Sans, paleta ámbar/dark, paneles redondeados estilo
+  "Notebook" con resizer arrastrable) — no reinventa tokens.
+
+  3 pantallas secuenciales:
+   1) Login pwa_pin (5 estados: pedir email / esperando código /
+      validando sesión / sin conexión / error de auth), siguiendo
+      pwa_pin_guia_integracion_v1_4.md — BDC es "Caso A" (no tenía
+      login propio, integración directa desde el día uno).
+   2) Selección de obra (listarObrasUsuario) — todas las obras si
+      EsAdminGlobal=TRUE, si no solo las asignadas.
+   3) Buscador — 2 paneles resizables: Resultados (buscador +
+      lista) | Facetas (Etiquetas + Carpetas, checkboxes, filtro
+      100% client-side sobre los resultados ya traídos).
+
+  Backend: una sola URL (BDC_GAS_URL) sirve login y datos — pwa_pin
+  vive en el mismo proyecto/doPost que el resto de BDC (a diferencia
+  de EvoTen, que lo tiene en un proyecto GAS aparte con pwa_data.json).
+
+  PENDIENTE (documentado para no perderlo, no bloquea esta entrega):
+   - Completar BDC_GAS_URL más abajo con la URL real del deploy
+     (Implementar → Nueva implementación → Aplicación web) una vez
+     que Ale la genere — hoy BDC todavía no tiene un deploy web.
+   - CORS/preflight: sin validar en campo todavía si fetch() desde
+     GitHub Pages contra este doPost funciona sin fricción (mismo
+     tema abierto que en EvoTen).
+   - manifest.json + íconos reales: no se generan acá (son assets
+     del repo, no del código), el link de arriba queda apuntando
+     igual que en el resto del stack.
+   - Lápiz Global: todavía no integrado. Cuando se pegue, atención
+     a los 2 hallazgos ya conocidos de otras integraciones: (1) esta
+     app no usa íconos Tabler todavía, hay que sumar el CDN; (2) BDC
+     es 100vh fijo con scroll en contenedores internos (#lista-resultados),
+     no a nivel documento — el canvas del lápiz tiene que anclarse
+     ahí, no a <body>, con el mismo fix aplicado en GOE Org.
+   - Panel de Facetas en mobile: por ahora se apila debajo de
+     Resultados (sin resizer, que se oculta <720px) — no se armó
+     un drawer/toggle todavía, queda como mejora pendiente.
+   - Estructura de columnas de indice_documental (texto completo
+     por página vs. fragmentado): sigue sin definir, no afecta este
+     frontend porque ya consume Texto/snippet tal cual buscarEnObra_
+     los devuelve hoy.
+-->
+<style>
+/* ─────────────────────────────────────────────────
+   DESIGN TOKENS — mismos que Mesa de Trabajo (MdT)
+───────────────────────────────────────────────── */
+:root {
+  --bg       : #f1f5f9;
+  --surface  : #ffffff;
+  --border   : #e2e8f0;
+  --accent   : #d97706;
+  --accent2  : #0f172a;
+  --tag-bg   : #fef3c7;
+  --tag-fg   : #92400e;
+  --tag-sel  : #d97706;
+  --tag-sfg  : #ffffff;
+  --text     : #1e293b;
+  --muted    : #64748b;
+  --success  : #16a34a;
+  --danger   : #dc2626;
+  --radius   : 12px;
+  --radius-sm: 8px;
+  --shadow   : 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.10);
+  --header-h : 52px;
+  --facetas-w: 300px;
+  --facetas-min: 220px;
+  --facetas-max: 480px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  background : var(--bg);
+  color      : var(--text);
+  font-family: 'DM Sans', sans-serif;
+  display    : flex;
+  flex-direction: column;
+  font-size  : 14px;
+  line-height: 1.5;
+}
+button { font-family: inherit; cursor: pointer; }
+a { color: inherit; text-decoration: none; }
+input { font-family: inherit; }
+
+/* ─────────────────────────────────────────────────
+   PANTALLAS FULL-SCREEN (login / obras)
+───────────────────────────────────────────────── */
+.pantalla-centrada {
+  display        : none;
+  flex-direction : column;
+  align-items    : center;
+  justify-content: center;
+  height         : 100vh;
+  gap            : 24px;
+  padding        : 20px;
+  overflow-y     : auto;
+}
+.pantalla-centrada.visible { display: flex; }
+
+.caja {
+  background   : var(--surface);
+  border       : 1px solid var(--border);
+  border-radius: var(--radius);
+  padding      : 40px 36px;
+  max-width    : 380px;
+  width        : 100%;
+  text-align   : center;
+  box-shadow   : var(--shadow-md);
+}
+.caja-logo  { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--accent); letter-spacing: 3px; margin-bottom: 4px; }
+.caja-emoji { font-size: 2.2rem; margin-bottom: 10px; display: block; }
+.caja-sub   { font-size: .78rem; color: var(--muted); margin-bottom: 28px; }
+.caja-title { font-size: 1rem; font-weight: 600; margin-bottom: 6px; }
+.caja-desc  { font-size: .8rem; color: var(--muted); margin-bottom: 22px; line-height: 1.6; }
+
+/* Pasos de login — solo uno visible a la vez */
+.login-paso { display: none; }
+.login-paso.activo { display: block; }
+
+.input-email, .input-pin {
+  width        : 100%;
+  padding      : 11px 14px;
+  border       : 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size    : .9rem;
+  color        : var(--text);
+  margin-bottom: 14px;
+  text-align   : center;
+  transition   : border-color .15s;
+}
+.input-email:focus, .input-pin:focus { outline: none; border-color: var(--accent); }
+.input-pin { font-size: 1.4rem; letter-spacing: 6px; font-family: monospace; }
+
+.btn-accion {
+  width        : 100%;
+  padding      : 11px 16px;
+  border       : none;
+  border-radius: var(--radius-sm);
+  background   : var(--accent);
+  color        : #fff;
+  font-size    : .85rem;
+  font-weight  : 600;
+  transition   : background .15s, transform .1s;
+}
+.btn-accion:hover:not(:disabled)  { background: #b45309; }
+.btn-accion:disabled { opacity: .5; cursor: not-allowed; }
+.btn-secundario {
+  width        : 100%;
+  padding      : 9px 16px;
+  border       : 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background   : var(--surface);
+  color        : var(--muted);
+  font-size    : .78rem;
+  margin-top   : 10px;
+  transition   : all .15s;
+}
+.btn-secundario:hover:not(:disabled) { background: #f8fafc; }
+.btn-secundario:disabled { opacity: .5; cursor: not-allowed; }
+
+.msg-error {
+  background   : #fef2f2;
+  border       : 1px solid #fecaca;
+  color        : #991b1b;
+  border-radius: var(--radius-sm);
+  padding      : 9px 12px;
+  font-size    : .78rem;
+  margin-bottom: 14px;
+  text-align   : left;
+  display      : none;
+}
+.msg-error.visible { display: block; }
+
+.spinner {
+  width        : 28px;
+  height       : 28px;
+  border       : 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  margin       : 0 auto 16px;
+  animation    : girar .8s linear infinite;
+}
+@keyframes girar { to { transform: rotate(360deg); } }
+
+/* ─────────────────────────────────────────────────
+   OBRAS SCREEN
+───────────────────────────────────────────────── */
+#obras-screen .caja { max-width: 460px; text-align: left; }
+#lista-obras { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.obra-card {
+  display        : flex;
+  align-items    : center;
+  justify-content: space-between;
+  padding        : 14px 16px;
+  border         : 1.5px solid var(--border);
+  border-radius  : var(--radius-sm);
+  background     : var(--surface);
+  cursor         : pointer;
+  transition     : all .15s;
+}
+.obra-card:hover { border-color: var(--accent); background: #fffbeb; }
+.obra-nombre { font-weight: 600; font-size: .88rem; }
+.obra-admin-badge {
+  font-size    : .62rem;
+  font-weight  : 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color        : var(--accent);
+  background   : var(--tag-bg);
+  padding      : 2px 8px;
+  border-radius: 99px;
+}
+.obra-flecha { color: var(--muted); font-size: 1.1rem; }
+.obras-vacio { font-size: .82rem; color: var(--muted); text-align: center; padding: 20px 0; }
+
+/* ─────────────────────────────────────────────────
+   APP — HEADER
+───────────────────────────────────────────────── */
+#app { display: none; flex-direction: column; height: 100vh; overflow: hidden; }
+#app-header {
+  height       : var(--header-h);
+  background   : var(--accent2);
+  display      : flex;
+  align-items  : center;
+  padding      : 0 18px;
+  gap          : 12px;
+  flex-shrink  : 0;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.hdr-logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; color: var(--accent); letter-spacing: 2px; white-space: nowrap; }
+.hdr-obra-nombre {
+  font-size    : .8rem;
+  color        : rgba(255,255,255,.75);
+  white-space  : nowrap;
+  overflow     : hidden;
+  text-overflow: ellipsis;
+  max-width    : 220px;
+}
+.hdr-btn-cambiar-obra {
+  background   : transparent;
+  border       : 1px solid rgba(255,255,255,.18);
+  color        : rgba(255,255,255,.6);
+  border-radius: var(--radius-sm);
+  padding      : 4px 10px;
+  font-size    : .68rem;
+  transition   : all .15s;
+  white-space  : nowrap;
+}
+.hdr-btn-cambiar-obra:hover { border-color: var(--accent); color: var(--accent); }
+.hdr-sep { flex: 1; }
+.hdr-email { font-size: .72rem; color: rgba(255,255,255,.4); white-space: nowrap; }
+
+/* ─────────────────────────────────────────────────
+   MAIN LAYOUT — 2 paneles
+───────────────────────────────────────────────── */
+#main {
+  display   : flex;
+  flex      : 1;
+  overflow  : hidden;
+  background: var(--bg);
+  padding   : 8px;
+  gap       : 0;
+}
+#panel-resultados, #panel-facetas {
+  border-radius: var(--radius);
+  box-shadow   : 0 1px 4px rgba(0,0,0,.07), 0 0 0 .5px rgba(0,0,0,.06);
+  overflow     : hidden;
+  background   : var(--surface);
+  display      : flex;
+  flex-direction: column;
+}
+#panel-resultados { flex: 1; min-width: 360px; }
+#panel-facetas { width: var(--facetas-w); min-width: var(--facetas-min); max-width: var(--facetas-max); flex-shrink: 0; }
+
+.panel-header {
+  padding      : 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  display      : flex;
+  align-items  : center;
+  gap          : 8px;
+  flex-shrink  : 0;
+}
+.panel-title {
+  font-size     : .68rem;
+  font-weight   : 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color         : var(--muted);
+}
+
+/* ── Buscador ─────────────────────────────────── */
+#buscador-wrap { padding: 12px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+#input-buscar {
+  width        : 100%;
+  padding      : 10px 14px;
+  border       : 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size    : .88rem;
+  transition   : border-color .15s;
+}
+#input-buscar:focus { outline: none; border-color: var(--accent); }
+#buscar-contador { font-size: .72rem; color: var(--muted); margin-top: 8px; }
+
+/* ── Lista de resultados ─────────────────────── */
+#lista-resultados { flex: 1; overflow-y: auto; padding: 8px 16px 16px; }
+.resultado-card {
+  border       : 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding      : 12px 14px;
+  margin-bottom: 10px;
+  transition   : border-color .15s;
+}
+.resultado-card:hover { border-color: var(--accent); }
+.resultado-doc { font-weight: 600; font-size: .84rem; margin-bottom: 2px; }
+.resultado-meta { font-size: .68rem; color: var(--muted); margin-bottom: 8px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.resultado-carpeta { color: var(--muted); }
+.resultado-snippet { font-size: .8rem; color: var(--text); line-height: 1.5; margin-bottom: 10px; }
+.resultado-snippet mark { background: var(--tag-bg); color: var(--tag-fg); padding: 1px 2px; border-radius: 3px; font-weight: 600; }
+.resultado-etiquetas { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+.resultado-etiqueta-chip {
+  font-size    : .64rem;
+  padding      : 2px 8px;
+  border-radius: 99px;
+  background   : var(--tag-bg);
+  color        : var(--tag-fg);
+  font-weight  : 500;
+}
+.resultado-acciones { display: flex; gap: 8px; }
+.btn-resultado {
+  padding      : 5px 12px;
+  border-radius: var(--radius-sm);
+  border       : 1px solid var(--border);
+  background   : var(--surface);
+  color        : var(--text);
+  font-size    : .72rem;
+  font-weight  : 500;
+  transition   : all .15s;
+}
+.btn-resultado:hover { border-color: var(--accent); color: var(--accent); background: #fffbeb; }
+.btn-resultado.ver { border-color: var(--accent2); }
+
+.resultados-vacio, .resultados-cargando {
+  text-align: center;
+  color     : var(--muted);
+  font-size : .82rem;
+  padding   : 40px 20px;
+}
+
+/* ─────────────────────────────────────────────────
+   RESIZER (mismo patrón visual que MdT)
+───────────────────────────────────────────────── */
+.resizer {
+  width      : 8px;
+  background : transparent;
+  cursor     : col-resize;
+  flex-shrink: 0;
+  position   : relative;
+}
+.resizer::after {
+  content      : '';
+  position     : absolute;
+  top          : 50%; left: 50%;
+  transform    : translate(-50%, -50%);
+  width        : 4px; height: 32px;
+  background   : transparent;
+  border-radius: 99px;
+  transition   : background .2s;
+}
+.resizer:hover::after, .resizer.dragging::after { background: var(--accent); opacity: .55; }
+
+/* ─────────────────────────────────────────────────
+   PANEL FACETAS
+───────────────────────────────────────────────── */
+#facetas-body { flex: 1; overflow-y: auto; padding: 4px 16px 16px; }
+.faceta-grupo { margin-bottom: 20px; }
+.faceta-grupo-titulo {
+  font-size     : .67rem;
+  font-weight   : 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color         : var(--muted);
+  margin-bottom : 8px;
+  display       : flex;
+  align-items   : center;
+  justify-content: space-between;
+}
+.faceta-limpiar {
+  font-size : .64rem;
+  color     : var(--accent);
+  font-weight: 600;
+  background: none;
+  border    : none;
+  padding   : 0;
+  display   : none;
+}
+.faceta-limpiar.visible { display: inline; }
+.faceta-lista { display: flex; flex-direction: column; gap: 4px; }
+.faceta-chip {
+  display      : flex;
+  align-items  : center;
+  justify-content: space-between;
+  gap          : 8px;
+  padding      : 5px 10px;
+  border-radius: var(--radius-sm);
+  background   : var(--tag-bg);
+  color        : var(--tag-fg);
+  font-size    : .74rem;
+  font-weight  : 500;
+  border       : 1.5px solid transparent;
+  cursor       : pointer;
+  transition   : all .15s;
+  user-select  : none;
+}
+.faceta-chip:hover  { border-color: var(--accent); }
+.faceta-chip.activa { background: var(--tag-sel); color: var(--tag-sfg); border-color: var(--tag-sel); }
+.faceta-chip-count  { font-size: .68rem; opacity: .75; flex-shrink: 0; }
+.facetas-vacio { font-size: .76rem; color: var(--muted); }
+
+/* ─────────────────────────────────────────────────
+   DIALOG "Sesión actual" (Ctrl+Alt+U)
+───────────────────────────────────────────────── */
+#session-dialog-overlay {
+  display        : none;
+  position       : fixed;
+  inset          : 0;
+  background     : rgba(15,23,42,.4);
+  z-index        : 200;
+  align-items    : center;
+  justify-content: center;
+}
+#session-dialog-overlay.visible { display: flex; }
+.session-dialog {
+  background   : var(--surface);
+  border-radius: var(--radius);
+  box-shadow   : var(--shadow-md);
+  padding      : 24px;
+  max-width    : 320px;
+  width        : 100%;
+}
+.session-dialog-title { font-size: .9rem; font-weight: 600; margin-bottom: 14px; }
+.session-dialog-row { display: flex; justify-content: space-between; font-size: .78rem; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.session-dialog-row:last-of-type { border-bottom: none; }
+.session-dialog-label { color: var(--muted); }
+.badge-noexpira { background: var(--tag-bg); color: var(--tag-fg); font-size: .64rem; font-weight: 700; padding: 2px 7px; border-radius: 99px; }
+.btn-cerrar-sesion {
+  width: 100%; margin-top: 16px; padding: 9px; border-radius: var(--radius-sm);
+  border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; font-size: .78rem; font-weight: 600;
+}
+.btn-cerrar-sesion:hover { background: #fee2e2; }
+
+/* ─────────────────────────────────────────────────
+   RESPONSIVE
+───────────────────────────────────────────────── */
+@media (max-width: 720px) {
+  #main { flex-direction: column; padding: 6px; gap: 6px; }
+  #panel-resultados { min-width: 0; flex: 1; }
+  #panel-facetas { width: 100% !important; max-width: none; min-width: 0; max-height: 40vh; }
+  .resizer { display: none; }
+  .hdr-email { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ LOGIN — pwa_pin (5 estados) ═══════════════ -->
+<div id="login-screen" class="pantalla-centrada visible">
+  <div class="caja">
+    <span class="caja-emoji">🔎</span>
+    <div class="caja-logo">BDC</div>
+    <div class="caja-sub">Buscador Documental de Contrato</div>
+
+    <!-- Paso 1: pedir email -->
+    <div class="login-paso" id="paso-email">
+      <div class="caja-title">Ingresá tu email</div>
+      <div class="caja-desc">Te vamos a enviar un código de acceso.</div>
+      <div class="msg-error" id="email-error"></div>
+      <input type="email" class="input-email" id="input-email" placeholder="tu.email@empresa.com" autocomplete="email">
+      <button class="btn-accion" id="btn-enviar-codigo" onclick="onEnviarCodigo()">Enviar código</button>
+    </div>
+
+    <!-- Paso 2: esperando código -->
+    <div class="login-paso" id="paso-codigo">
+      <div class="caja-title">Ingresá el código</div>
+      <div class="caja-desc" id="codigo-desc">Te lo enviamos por mail. Vence en 10 minutos.</div>
+      <div class="msg-error" id="codigo-error"></div>
+      <input type="text" class="input-pin" id="input-pin" placeholder="······" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
+      <button class="btn-accion" id="btn-validar-codigo" onclick="onValidarCodigo()">Ingresar</button>
+      <button class="btn-secundario" id="btn-reenviar" onclick="onEnviarCodigo(true)">Reenviar código</button>
+    </div>
+
+    <!-- Paso 3: validando sesión -->
+    <div class="login-paso" id="paso-validando">
+      <div class="spinner"></div>
+      <div class="caja-desc" style="margin-bottom:0">Validando usuario...</div>
+    </div>
+
+    <!-- Paso 4: sin conexión -->
+    <div class="login-paso" id="paso-sinconexion">
+      <div class="caja-title">Sin conexión</div>
+      <div class="caja-desc">No pudimos validar tu sesión. Revisá tu conexión a internet.</div>
+      <button class="btn-accion" onclick="validarSesionGuardada()">Reintentar</button>
+    </div>
+
+    <!-- Paso 5: error de auth -->
+    <div class="login-paso" id="paso-error-auth">
+      <div class="caja-title">No pudimos validar tu acceso</div>
+      <div class="msg-error visible" id="error-auth-msg"></div>
+      <button class="btn-accion" onclick="volverAPedirEmail()">Volver a intentar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ SELECCIÓN DE OBRA ═══════════════ -->
+<div id="obras-screen" class="pantalla-centrada">
+  <div class="caja">
+    <div class="caja-logo" style="font-size:1.5rem">Elegí una obra</div>
+    <div class="caja-sub" id="obras-sub" style="margin-bottom:16px"></div>
+    <div id="lista-obras"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ APP — BUSCADOR ═══════════════ -->
+<div id="app">
+  <header id="app-header">
+    <span class="hdr-logo">BDC</span>
+    <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
+    <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
+    <span class="hdr-sep"></span>
+    <span class="hdr-email" id="hdr-email"></span>
+  </header>
+
+  <div id="main">
+    <!-- PANEL RESULTADOS -->
+    <div id="panel-resultados">
+      <div id="buscador-wrap">
+        <input type="text" id="input-buscar" placeholder="Buscar en el pliego, circulares, especificaciones...">
+        <div id="buscar-contador"></div>
+      </div>
+      <div id="lista-resultados">
+        <div class="resultados-cargando">Cargando documentos...</div>
+      </div>
+    </div>
+
+    <!-- RESIZER -->
+    <div class="resizer" id="resizer-facetas"></div>
+
+    <!-- PANEL FACETAS -->
+    <div id="panel-facetas">
+      <div class="panel-header">
+        <span class="panel-title">Filtros</span>
+      </div>
+      <div id="facetas-body">
+        <div class="faceta-grupo">
+          <div class="faceta-grupo-titulo">
+            <span>Etiquetas</span>
+            <button class="faceta-limpiar" id="limpiar-etiquetas" onclick="limpiarFaceta('etiquetas')">Limpiar</button>
+          </div>
+          <div class="faceta-lista" id="faceta-etiquetas"></div>
+        </div>
+        <div class="faceta-grupo">
+          <div class="faceta-grupo-titulo">
+            <span>Carpetas</span>
+            <button class="faceta-limpiar" id="limpiar-carpetas" onclick="limpiarFaceta('carpetas')">Limpiar</button>
+          </div>
+          <div class="faceta-lista" id="faceta-carpetas"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ DIALOG "Sesión actual" (Ctrl+Alt+U) ═══════════════ -->
+<div id="session-dialog-overlay" onclick="if(event.target===this) cerrarSessionDialog()">
+  <div class="session-dialog">
+    <div class="session-dialog-title">Sesión actual</div>
+    <div class="session-dialog-row"><span class="session-dialog-label">Email</span><span id="sd-email"></span></div>
+    <div class="session-dialog-row"><span class="session-dialog-label">Nombre</span><span id="sd-nombre"></span></div>
+    <div class="session-dialog-row"><span class="session-dialog-label">Vence</span><span id="sd-vence"></span></div>
+    <button class="btn-cerrar-sesion" onclick="cerrarSesion()">Cerrar sesión</button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   BDC — index_bdc_v1.html — lógica
+   ============================================================ */
+
+// ── CONFIG ──────────────────────────────────────────────────
+// TODO: completar con la URL real del deploy web de BDC
+// (Implementar → Nueva implementación → Aplicación web) — todavía
+// no existe, BDC no tiene deploy web hecho a esta fecha (29-ago-2026).
+const BDC_GAS_URL = 'COMPLETAR_URL_DEPLOY_BDC';
+
+const SESION_KEY   = 'bdc_sesion';
+const OBRA_KEY     = 'bdc_obra_actual';
+const SESION_DIAS  = 7;
+const COOLDOWN_SEG = 120; // debe coincidir con PWAPIN_CONFIG.COOLDOWN_SEGUNDOS del backend
+
+// ── ESTADO EN MEMORIA ───────────────────────────────────────
+let emailActual        = '';   // email en curso durante el login
+let cooldownInterval    = null;
+let obraActual          = null; // { obraId, nombreObra, esAdminObra }
+let resultadosActuales  = [];   // último resultado crudo de buscarEnObra_
+let facetasSeleccionadas = { etiquetas: new Set(), carpetas: new Set() };
+let debounceBuscar      = null;
+
+// ── HELPERS DE FETCH ────────────────────────────────────────
+async function llamarBackend(action, params) {
+  const body = Object.assign({ action: action }, params || {});
+  const resp = await fetch(BDC_GAS_URL, {
+    method : 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // evita preflight CORS en Apps Script
+    body   : JSON.stringify(body)
+  });
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  return resp.json();
+}
+
+// ── SESIÓN (localStorage) ───────────────────────────────────
+function leerSesion() {
+  try {
+    const raw = localStorage.getItem(SESION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (err) {
+    return null;
+  }
+}
+function guardarSesion(email, nombreApellido, noExpira) {
+  const sesion = {
+    email          : email,
+    nombreApellido : nombreApellido || '',
+    noExpira       : !!noExpira,
+    exp            : Date.now() + SESION_DIAS * 24 * 60 * 60 * 1000
+  };
+  localStorage.setItem(SESION_KEY, JSON.stringify(sesion));
+  return sesion;
+}
+function borrarSesion() {
+  localStorage.removeItem(SESION_KEY);
+  localStorage.removeItem(OBRA_KEY);
+}
+function sesionVencidaLocalmente(sesion) {
+  if (sesion.noExpira) return false;
+  return Date.now() > sesion.exp;
+}
+
+// ── BOOT ─────────────────────────────────────────────────────
+function boot() {
+  document.addEventListener('keydown', onKeydownGlobal);
+
+  const sesion = leerSesion();
+  if (!sesion) {
+    mostrarPantalla('login-screen');
+    mostrarPasoLogin('email');
+    return;
+  }
+
+  // Con sesión guardada (vencida o no) siempre se revalida contra
+  // backend antes de mostrar nada — nunca "optimista" (guía §5).
+  mostrarPantalla('login-screen');
+  mostrarPasoLogin('validando');
+  validarSesionGuardada();
+}
+
+async function validarSesionGuardada() {
+  const sesion = leerSesion();
+  if (!sesion) { mostrarPasoLogin('email'); return; }
+
+  mostrarPasoLogin('validando');
+  try {
+    const r = await llamarBackend('validarSesion', { email: sesion.email });
+    if (r.ok) {
+      guardarSesion(sesion.email, r.nombreApellido, r.noExpira);
+      emailActual = sesion.email;
+      continuarDespuesDeLogin();
+      return;
+    }
+    // ok:false con motivo -> rechazo real (guía §5)
+    borrarSesion();
+    mostrarLoginConError(mensajePorMotivo(r.motivo));
+  } catch (err) {
+    // falla de red -> no es rechazo de auth, no se borra la sesión
+    if (sesionVencidaLocalmente(sesion)) {
+      // sin red y ya vencida localmente: no hay forma de confirmar nada, pide login
+      mostrarPasoLogin('email');
+    } else {
+      mostrarPasoLogin('sinconexion');
+    }
+  }
+}
+
+// ── LOGIN — Paso 1: pedir email / solicitar PIN ─────────────
+async function onEnviarCodigo(esReenvio) {
+  const btn = esReenvio ? document.getElementById('btn-reenviar') : document.getElementById('btn-enviar-codigo');
+  const errorBox = document.getElementById(esReenvio ? 'codigo-error' : 'email-error');
+  ocultarError(errorBox);
+
+  let email = esReenvio ? emailActual : document.getElementById('input-email').value.trim();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    mostrarError(document.getElementById('email-error'), 'Ingresá un email válido.');
+    return;
+  }
+  emailActual = email.toLowerCase();
+
+  btn.disabled = true;
+  const textoOriginal = btn.textContent;
+  btn.textContent = 'Enviando...';
+
+  try {
+    const r = await llamarBackend('solicitarPIN', { email: emailActual });
+    if (r.ok) {
+      document.getElementById('codigo-desc').textContent = 'Enviado a ' + emailActual + '. Vence en 10 minutos.';
+      document.getElementById('input-pin').value = '';
+      mostrarPasoLogin('codigo');
+      iniciarCooldownReenvio();
+    } else {
+      mostrarError(errorBox, mensajePorMotivo(r.motivo, r.restanteSegundos));
+      if (r.motivo === 'cooldown' && r.restanteSegundos) {
+        iniciarCooldownReenvio(r.restanteSegundos);
+        mostrarPasoLogin('codigo');
+      }
+    }
+  } catch (err) {
+    mostrarError(errorBox, 'No pudimos conectar. Revisá tu conexión e intentá de nuevo.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = textoOriginal;
+  }
+}
+
+function iniciarCooldownReenvio(segundosIniciales) {
+  const btn = document.getElementById('btn-reenviar');
+  let restante = segundosIniciales || COOLDOWN_SEG;
+  btn.disabled = true;
+  clearInterval(cooldownInterval);
+
+  function tick() {
+    btn.textContent = 'Reenviar código (' + restante + 's)';
+    if (restante <= 0) {
+      clearInterval(cooldownInterval);
+      btn.disabled = false;
+      btn.textContent = 'Reenviar código';
+      return;
+    }
+    restante--;
+  }
+  tick();
+  cooldownInterval = setInterval(tick, 1000);
+}
+
+// ── LOGIN — Paso 2: validar código ──────────────────────────
+async function onValidarCodigo() {
+  const btn = document.getElementById('btn-validar-codigo');
+  const errorBox = document.getElementById('codigo-error');
+  ocultarError(errorBox);
+
+  const pin = document.getElementById('input-pin').value.trim();
+  if (!/^\d{6}$/.test(pin)) {
+    mostrarError(errorBox, 'El código tiene 6 dígitos.');
+    return;
+  }
+
+  btn.disabled = true;
+  const textoOriginal = btn.textContent;
+  btn.textContent = 'Validando...';
+
+  try {
+    const r = await llamarBackend('validarPIN', { email: emailActual, pin: pin });
+    if (r.ok) {
+      guardarSesion(emailActual, r.nombreApellido, r.noExpira);
+      clearInterval(cooldownInterval);
+      continuarDespuesDeLogin();
+    } else {
+      mostrarError(errorBox, mensajePorMotivo(r.motivo, r.restantes));
+    }
+  } catch (err) {
+    mostrarError(errorBox, 'No pudimos conectar. Revisá tu conexión e intentá de nuevo.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = textoOriginal;
+  }
+}
+
+function volverAPedirEmail() {
+  document.getElementById('input-email').value = '';
+  document.getElementById('input-pin').value = '';
+  mostrarPasoLogin('email');
+}
+function mostrarLoginConError(msg) {
+  document.getElementById('error-auth-msg').textContent = msg;
+  mostrarPasoLogin('error-auth');
+}
+
+function mensajePorMotivo(motivo, extra) {
+  const mensajes = {
+    no_encontrado    : 'No encontramos ese email en el sistema.',
+    inactivo         : 'Tu acceso está desactivado. Contactá al administrador.',
+    bloqueado        : 'Tu cuenta quedó bloqueada por intentos fallidos. Contactá al administrador.',
+    pin_incorrecto   : 'Código incorrecto.' + (extra ? ' Te quedan ' + extra + ' intentos.' : ''),
+    bloqueado_ahora  : 'Demasiados intentos fallidos — tu cuenta quedó bloqueada.',
+    pin_vencido      : 'El código venció. Pedí uno nuevo.',
+    sin_pin_generado : 'Todavía no pediste un código. Solicitá uno primero.',
+    cooldown         : 'Esperá ' + (extra || COOLDOWN_SEG) + ' segundos antes de pedir un código nuevo.',
+    error_envio_mail : 'No pudimos enviar el mail. Reintentá en un momento.'
+  };
+  return mensajes[motivo] || 'Ocurrió un error. Intentá de nuevo.';
+}
+
+function mostrarError(box, msg) { box.textContent = msg; box.classList.add('visible'); }
+function ocultarError(box) { box.classList.remove('visible'); }
+
+function mostrarPasoLogin(paso) {
+  document.querySelectorAll('.login-paso').forEach(function (el) { el.classList.remove('activo'); });
+  const mapa = { email: 'paso-email', codigo: 'paso-codigo', validando: 'paso-validando', sinconexion: 'paso-sinconexion', 'error-auth': 'paso-error-auth' };
+  document.getElementById(mapa[paso]).classList.add('activo');
+  if (paso === 'email') setTimeout(function () { document.getElementById('input-email').focus(); }, 50);
+  if (paso === 'codigo') setTimeout(function () { document.getElementById('input-pin').focus(); }, 50);
+}
+
+// ── DESPUÉS DEL LOGIN: ir a selección de obra o directo al buscador ──
+function continuarDespuesDeLogin() {
+  const obraGuardada = leerObraGuardada();
+  if (obraGuardada) {
+    obraActual = obraGuardada;
+    mostrarBuscador();
+  } else {
+    cargarObras();
+  }
+}
+
+// ── SELECCIÓN DE OBRA ───────────────────────────────────────
+function leerObraGuardada() {
+  try {
+    const raw = localStorage.getItem(OBRA_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (err) { return null; }
+}
+function guardarObraActual(obra) {
+  localStorage.setItem(OBRA_KEY, JSON.stringify(obra));
+}
+function cambiarObra() {
+  localStorage.removeItem(OBRA_KEY);
+  obraActual = null;
+  cargarObras();
+}
+
+async function cargarObras() {
+  mostrarPantalla('obras-screen');
+  document.getElementById('lista-obras').innerHTML = '<div class="obras-vacio">Cargando obras...</div>';
+
+  try {
+    const r = await llamarBackend('listarObrasUsuario', { email: emailActual });
+    if (!r.ok) {
+      document.getElementById('lista-obras').innerHTML = '<div class="obras-vacio">No pudimos cargar tus obras.</div>';
+      return;
+    }
+
+    document.getElementById('obras-sub').textContent = r.esAdminGlobal
+      ? 'Acceso de administrador — todas las obras'
+      : 'Obras asignadas a tu usuario';
+
+    if (r.obras.length === 0) {
+      document.getElementById('lista-obras').innerHTML = '<div class="obras-vacio">Todavía no tenés obras asignadas.<br>Contactá al administrador.</div>';
+      return;
+    }
+
+    // Si hay una sola obra, se entra directo (sin pantalla intermedia)
+    if (r.obras.length === 1) {
+      obraActual = r.obras[0];
+      guardarObraActual(obraActual);
+      mostrarBuscador();
+      return;
+    }
+
+    renderObras(r.obras);
+  } catch (err) {
+    document.getElementById('lista-obras').innerHTML = '<div class="obras-vacio">Sin conexión. <button class="btn-secundario" style="width:auto;display:inline-block;margin-top:8px" onclick="cargarObras()">Reintentar</button></div>';
+  }
+}
+
+function renderObras(obras) {
+  const cont = document.getElementById('lista-obras');
+  cont.innerHTML = '';
+  obras.forEach(function (obra) {
+    const card = document.createElement('div');
+    card.className = 'obra-card';
+    card.onclick = function () {
+      obraActual = obra;
+      guardarObraActual(obra);
+      mostrarBuscador();
+    };
+    card.innerHTML =
+      '<span class="obra-nombre">' + escapeHtml(obra.nombreObra) + '</span>' +
+      (obra.esAdminObra ? '<span class="obra-admin-badge">Admin</span>' : '<span class="obra-flecha">›</span>');
+    cont.appendChild(card);
+  });
+}
+
+// ── BUSCADOR ─────────────────────────────────────────────────
+function mostrarBuscador() {
+  mostrarPantalla('app-visible');
+  document.getElementById('hdr-obra-nombre').textContent = obraActual.nombreObra;
+  document.getElementById('hdr-email').textContent = emailActual;
+  document.getElementById('input-buscar').value = '';
+  facetasSeleccionadas.etiquetas.clear();
+  facetasSeleccionadas.carpetas.clear();
+  configurarResizerFacetas();
+  configurarInputBuscar();
+  buscar('');
+}
+
+function configurarInputBuscar() {
+  const input = document.getElementById('input-buscar');
+  input.oninput = function () {
+    clearTimeout(debounceBuscar);
+    debounceBuscar = setTimeout(function () {
+      buscar(input.value.trim());
+    }, 350);
+  };
+}
+
+async function buscar(termino) {
+  document.getElementById('lista-resultados').innerHTML = '<div class="resultados-cargando">Buscando...</div>';
+  try {
+    const r = await llamarBackend('buscar', { obraId: obraActual.obraId, termino: termino, email: emailActual });
+    if (!r.ok) {
+      document.getElementById('lista-resultados').innerHTML = '<div class="resultados-vacio">Error al buscar.</div>';
+      return;
+    }
+    resultadosActuales = r.resultados;
+    facetasSeleccionadas.etiquetas.clear();
+    facetasSeleccionadas.carpetas.clear();
+    renderFacetas();
+    renderResultados();
+  } catch (err) {
+    document.getElementById('lista-resultados').innerHTML = '<div class="resultados-vacio">Sin conexión. Revisá tu internet e intentá de nuevo.</div>';
+  }
+}
+
+function resultadosFiltrados() {
+  const etq = facetasSeleccionadas.etiquetas;
+  const carp = facetasSeleccionadas.carpetas;
+  return resultadosActuales.filter(function (r) {
+    if (etq.size > 0) {
+      const etiquetasFila = etiquetasDeFila(r);
+      const matchEtq = etiquetasFila.some(function (e) { return etq.has(e); });
+      if (!matchEtq) return false;
+    }
+    if (carp.size > 0 && !carp.has(r.carpeta || '')) return false;
+    return true;
+  });
+}
+
+function etiquetasDeFila(r) {
+  return String(r.etiquetas || '').split(',').map(function (e) { return e.trim(); }).filter(Boolean);
+}
+
+function renderResultados() {
+  const cont = document.getElementById('lista-resultados');
+  const filtrados = resultadosFiltrados();
+
+  document.getElementById('buscar-contador').textContent =
+    filtrados.length + (filtrados.length === 1 ? ' resultado' : ' resultados') +
+    (filtrados.length !== resultadosActuales.length ? ' (de ' + resultadosActuales.length + ')' : '');
+
+  if (filtrados.length === 0) {
+    cont.innerHTML = '<div class="resultados-vacio">No se encontraron documentos.</div>';
+    return;
+  }
+
+  cont.innerHTML = '';
+  filtrados.forEach(function (r) {
+    const card = document.createElement('div');
+    card.className = 'resultado-card';
+
+    const etiquetasHtml = etiquetasDeFila(r).map(function (e) {
+      return '<span class="resultado-etiqueta-chip">' + escapeHtml(e) + '</span>';
+    }).join('');
+
+    const idDrive = extraerIdDrive(r.link);
+    const linkVer = r.link || '#';
+    const linkDescargar = idDrive ? ('https://drive.google.com/uc?export=download&id=' + idDrive) : (r.link || '#');
+
+    card.innerHTML =
+      '<div class="resultado-doc">' + escapeHtml(r.documento) + '</div>' +
+      '<div class="resultado-meta"><span>Pág. ' + escapeHtml(String(r.pagina)) + '</span>' +
+      (r.carpeta ? '<span class="resultado-carpeta">' + escapeHtml(r.carpeta) + '</span>' : '') + '</div>' +
+      '<div class="resultado-snippet">' + resaltarSnippet(r.snippet) + '</div>' +
+      (etiquetasHtml ? '<div class="resultado-etiquetas">' + etiquetasHtml + '</div>' : '') +
+      '<div class="resultado-acciones">' +
+      '<a class="btn-resultado ver" href="' + linkVer + '" target="_blank" rel="noopener">Ver</a>' +
+      '<a class="btn-resultado" href="' + linkDescargar + '" target="_blank" rel="noopener">Descargar</a>' +
+      '</div>';
+
+    cont.appendChild(card);
+  });
+}
+
+function resaltarSnippet(snippet) {
+  // El backend marca la coincidencia entre **asteriscos** (armarSnippet_)
+  return escapeHtml(snippet || '').replace(/\*\*(.+?)\*\*/g, '<mark>$1</mark>');
+}
+
+function extraerIdDrive(url) {
+  if (!url) return null;
+  const m = String(url).match(/\/d\/([a-zA-Z0-9_-]+)/);
+  return m ? m[1] : null;
+}
+
+// ── FACETAS ──────────────────────────────────────────────────
+function renderFacetas() {
+  renderFacetaGrupo('etiquetas', 'faceta-etiquetas', 'limpiar-etiquetas');
+  renderFacetaGrupo('carpetas', 'faceta-carpetas', 'limpiar-carpetas');
+}
+
+function renderFacetaGrupo(tipo, contId, limpiarBtnId) {
+  const cont = document.getElementById(contId);
+  const conteo = {};
+
+  resultadosActuales.forEach(function (r) {
+    const valores = tipo === 'etiquetas' ? etiquetasDeFila(r) : [r.carpeta || ''];
+    valores.forEach(function (v) {
+      if (!v) return;
+      conteo[v] = (conteo[v] || 0) + 1;
+    });
+  });
+
+  const valoresOrdenados = Object.keys(conteo).sort(function (a, b) { return conteo[b] - conteo[a]; });
+
+  if (valoresOrdenados.length === 0) {
+    cont.innerHTML = '<div class="facetas-vacio">Sin datos.</div>';
+    return;
+  }
+
+  cont.innerHTML = '';
+  valoresOrdenados.forEach(function (valor) {
+    const chip = document.createElement('div');
+    const seleccionado = facetasSeleccionadas[tipo].has(valor);
+    chip.className = 'faceta-chip' + (seleccionado ? ' activa' : '');
+    chip.innerHTML = '<span>' + escapeHtml(valor) + '</span><span class="faceta-chip-count">' + conteo[valor] + '</span>';
+    chip.onclick = function () { toggleFaceta(tipo, valor); };
+    cont.appendChild(chip);
+  });
+
+  document.getElementById(limpiarBtnId).classList.toggle('visible', facetasSeleccionadas[tipo].size > 0);
+}
+
+function toggleFaceta(tipo, valor) {
+  const set = facetasSeleccionadas[tipo];
+  if (set.has(valor)) set.delete(valor); else set.add(valor);
+  renderFacetas();
+  renderResultados();
+}
+
+function limpiarFaceta(tipo) {
+  facetasSeleccionadas[tipo].clear();
+  renderFacetas();
+  renderResultados();
+}
+
+// ── RESIZER (facetas) ───────────────────────────────────────
+function configurarResizerFacetas() {
+  const resizer = document.getElementById('resizer-facetas');
+  const panelFacetas = document.getElementById('panel-facetas');
+  if (resizer.dataset.listo) return; // no duplicar el listener entre logins
+  resizer.dataset.listo = '1';
+
+  let startX, startW;
+  resizer.addEventListener('mousedown', function (e) {
+    startX = e.clientX;
+    startW = panelFacetas.getBoundingClientRect().width;
+    resizer.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    function onMove(e) {
+      const dx = e.clientX - startX;
+      const min = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--facetas-min'));
+      const max = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--facetas-max'));
+      const newW = Math.max(min, Math.min(max, startW - dx));
+      panelFacetas.style.width = newW + 'px';
+    }
+    function onUp() {
+      resizer.classList.remove('dragging');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+// ── DIALOG "Sesión actual" (Ctrl+Alt+U) ─────────────────────
+function onKeydownGlobal(e) {
+  if (e.ctrlKey && e.altKey && (e.key === 'u' || e.key === 'U')) {
+    e.preventDefault();
+    abrirSessionDialog();
+  }
+}
+function abrirSessionDialog() {
+  const sesion = leerSesion();
+  if (!sesion) return;
+  document.getElementById('sd-email').textContent = sesion.email;
+  document.getElementById('sd-nombre').textContent = sesion.nombreApellido || '—';
+  document.getElementById('sd-vence').innerHTML = sesion.noExpira
+    ? '<span class="badge-noexpira">No expira</span>'
+    : new Date(sesion.exp).toLocaleDateString('es-AR');
+  document.getElementById('session-dialog-overlay').classList.add('visible');
+}
+function cerrarSessionDialog() {
+  document.getElementById('session-dialog-overlay').classList.remove('visible');
+}
+function cerrarSesion() {
+  borrarSesion();
+  cerrarSessionDialog();
+  location.reload();
+}
+
+// ── NAVEGACIÓN DE PANTALLAS ─────────────────────────────────
+function mostrarPantalla(id) {
+  document.getElementById('login-screen').classList.remove('visible');
+  document.getElementById('obras-screen').classList.remove('visible');
+  document.getElementById('app').style.display = 'none';
+
+  if (id === 'app-visible') {
+    document.getElementById('app').style.display = 'flex';
+  } else {
+    document.getElementById(id).classList.add('visible');
+  }
+}
+
+// ── UTILS ────────────────────────────────────────────────────
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+boot();
+
+</script>
+</body>
+</html>
