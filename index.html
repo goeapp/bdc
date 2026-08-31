@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v2.2.0</title>
+<title>BDC — Buscador Documental de Contrato v2.3.0</title>
 <!-- PWA (patrón estándar del stack — falta agregar manifest.json + íconos reales al repo) -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0f172a">
@@ -14,6 +14,33 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔎</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
+  index_bdc_v2_3_0.html — v2.3.0 (31-ago-2026)
+
+  QUÉ CAMBIÓ EN v2.3.0 (respecto a v2.2.1) — Ale detectó que 3 de los
+  "Documentos vacíos" probados eran planos de AutoCAD (contenido
+  válido, casi sin texto real extraíble). En vez de un único botón
+  "Reintentar", cada card de "Documentos vacíos" ahora tiene un menú
+  desplegable "Acción ▾" con 2 opciones (extensible a futuro sin
+  tocar el resto): "Reintentar" (comportamiento de siempre) y
+  "Cargar como Plano" (nueva, backend bdc_gas_v2_3_0.gs) — registra
+  el documento con texto vacío + etiqueta fija "Plano", para no
+  seguir reintentando una extracción que siempre va a dar 0 páginas.
+  100% manual (sin detección automática por código de documento — se
+  conversó y se descartó por simplicidad y porque la convención de
+  código puede variar entre obras/clientes).
+
+  index_bdc_v2_2_1.html — v2.2.1 (31-ago-2026)
+
+  QUÉ CAMBIÓ EN v2.2.1 (respecto a v2.2.0) — fix chico detectado por
+  Ale probando en vivo: el bloqueo de pantalla durante una carga
+  (bloquearCargaUI, v2.2.0) SÍ funcionaba — los tabs, "← Buscador" y
+  "Limpiar" quedaban con disabled=true y no reaccionaban al clic —
+  pero no tenían ningún estilo visual para ese estado, así que se
+  veían exactamente igual que habilitados. Se agregó :disabled a
+  .carga-tab, .hdr-btn-cambiar-obra, .faceta-limpiar y
+  #input-etiqueta-nueva (opacidad reducida + cursor not-allowed).
+  Ningún cambio de comportamiento, solo visual.
+
   index_bdc_v2_2_0.html — v2.2.0 (31-ago-2026)
 
   QUÉ CAMBIÓ EN v2.2.0 (respecto a v2.1.0) — todo junto en una sola
@@ -437,6 +464,7 @@ input { font-family: inherit; }
   white-space  : nowrap;
 }
 .hdr-btn-cambiar-obra:hover { border-color: var(--accent); color: var(--accent); }
+.hdr-btn-cambiar-obra:disabled { opacity: .35; cursor: not-allowed; pointer-events: none; }
 .hdr-sep { flex: 1; }
 .hdr-email { font-size: .72rem; color: rgba(255,255,255,.4); white-space: nowrap; }
 
@@ -654,6 +682,7 @@ input { font-family: inherit; }
   display   : none;
 }
 .faceta-limpiar.visible { display: inline; }
+.faceta-limpiar:disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }
 .faceta-lista { display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 0; overflow-y: auto; padding-right: 2px; }
 .faceta-chip {
   display      : flex;
@@ -764,6 +793,7 @@ input { font-family: inherit; }
 }
 .carga-tab:hover  { color: var(--text); }
 .carga-tab.activa { color: var(--accent); border-bottom-color: var(--accent); }
+.carga-tab:disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }
 .carga-tab-badge {
   display      : inline-block;
   min-width    : 16px;
@@ -890,6 +920,7 @@ input { font-family: inherit; }
   font-family  : inherit;
 }
 #input-etiqueta-nueva:focus { outline: none; border-color: var(--accent); }
+#input-etiqueta-nueva:disabled { opacity: .5; cursor: not-allowed; background: var(--bg); }
 .btn-agregar-etiqueta {
   padding      : 7px 14px;
   border       : 1px solid var(--accent2);
@@ -971,6 +1002,48 @@ input { font-family: inherit; }
 .btn-reintentar:hover:not(:disabled) { background: var(--accent2); color: #fff; }
 .btn-reintentar:disabled { opacity: .6; cursor: not-allowed; }
 
+/* v2.3.0 — menú desplegable "Acción" (Reintentar / Cargar como
+   Plano / lo que se sume después) en las cards de Documentos
+   vacíos, en vez de un único botón fijo. */
+.accion-dropdown { position: relative; display: inline-block; }
+.btn-accion-menu {
+  padding      : 6px 14px;
+  border       : 1px solid var(--accent2);
+  border-radius: var(--radius-sm);
+  background   : var(--surface);
+  color        : var(--accent2);
+  font-size    : .76rem;
+  font-weight  : 600;
+  transition   : all .15s;
+}
+.btn-accion-menu:hover:not(:disabled) { background: var(--accent2); color: #fff; }
+.btn-accion-menu:disabled { opacity: .6; cursor: not-allowed; }
+.accion-menu {
+  display      : none;
+  position     : absolute;
+  bottom       : calc(100% + 4px);
+  left         : 0;
+  min-width    : 170px;
+  background   : var(--surface);
+  border       : 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow   : var(--shadow-md);
+  overflow     : hidden;
+  z-index      : 20;
+}
+.accion-dropdown.abierto .accion-menu { display: block; }
+.accion-menu-item {
+  display      : block;
+  width        : 100%;
+  text-align   : left;
+  padding      : 8px 12px;
+  border       : none;
+  background   : var(--surface);
+  color        : var(--text);
+  font-size    : .78rem;
+}
+.accion-menu-item:hover { background: var(--bg); }
+
 /* v2.2.0 — Documentos vacíos: mismo patrón que "con error" pero sin
    connotación de falla (badge y motivo en tono neutro, no rojo). */
 .carga-tab-badge-neutro { background: var(--muted); }
@@ -998,7 +1071,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v2.2.0</div>
+    <div class="caja-version">v2.3.0</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -1055,7 +1128,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v2.2.0</span>
+    <span class="hdr-version">v2.3.0</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <button class="hdr-btn-cambiar-obra" id="btn-cargar-datos" style="display:none" onclick="mostrarPantallaCarga()">Cargar documentos</button>
@@ -1120,7 +1193,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v2.2.0</span>
+    <span class="hdr-version">v2.3.0</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -2273,9 +2346,14 @@ async function cargarVacios() {
         '<div class="pendiente-carpeta">' + escapeHtml(v.carpeta || '') + '</div>' +
         '<div class="vacio-motivo">Sin texto extraíble (0 páginas).</div>' +
         '<div class="pendiente-meta">Intentos: ' + escapeHtml(String(v.cantidadIntentos || '')) + '</div>' +
-        '<button class="btn-reintentar">Reintentar</button>';
+        '<div class="accion-dropdown">' +
+        '<button class="btn-accion-menu" type="button">Acción ▾</button>' +
+        '<div class="accion-menu">' +
+        '<button class="accion-menu-item" data-accion="reintentar">Reintentar</button>' +
+        '<button class="accion-menu-item" data-accion="plano">Cargar como Plano</button>' +
+        '</div></div>';
       const etiquetasManuales = (v.etiquetasManuales || '').split(',').map(function (e) { return e.trim(); }).filter(Boolean);
-      card.querySelector('.btn-reintentar').onclick = function () { reintentarVacio(v.link, card, etiquetasManuales); };
+      configurarAccionDropdown(card, v.link, etiquetasManuales);
       cont.appendChild(card);
     });
   } catch (err) {
@@ -2283,8 +2361,36 @@ async function cargarVacios() {
   }
 }
 
+// v2.3.0 — cablea el menú "Acción" de una card de Documentos vacíos:
+// abre/cierra el desplegable y despacha cada ítem a su función. Un
+// solo listener global cierra cualquier dropdown abierto al hacer
+// clic afuera (más ítems se agregan solo sumando otro <button
+// class="accion-menu-item" data-accion="...">, sin tocar esta parte).
+function configurarAccionDropdown(card, link, etiquetasManuales) {
+  const dropdown = card.querySelector('.accion-dropdown');
+  const btnMenu = card.querySelector('.btn-accion-menu');
+  btnMenu.onclick = function (e) {
+    e.stopPropagation();
+    const yaAbierto = dropdown.classList.contains('abierto');
+    document.querySelectorAll('.accion-dropdown.abierto').forEach(function (d) { d.classList.remove('abierto'); });
+    if (!yaAbierto) dropdown.classList.add('abierto');
+  };
+  card.querySelector('[data-accion="reintentar"]').onclick = function () {
+    dropdown.classList.remove('abierto');
+    reintentarVacio(link, card, etiquetasManuales);
+  };
+  card.querySelector('[data-accion="plano"]').onclick = function () {
+    dropdown.classList.remove('abierto');
+    cargarComoPlano(link, card, etiquetasManuales);
+  };
+}
+
+document.addEventListener('click', function () {
+  document.querySelectorAll('.accion-dropdown.abierto').forEach(function (d) { d.classList.remove('abierto'); });
+});
+
 async function reintentarVacio(link, card, etiquetasManuales) {
-  const btn = card.querySelector('.btn-reintentar');
+  const btn = card.querySelector('.btn-accion-menu');
   btn.disabled = true;
   btn.textContent = 'Reintentando…';
   try {
@@ -2293,12 +2399,35 @@ async function reintentarVacio(link, card, etiquetasManuales) {
       cargarVacios();
     } else {
       btn.disabled = false;
-      btn.textContent = 'Reintentar';
+      btn.textContent = 'Acción ▾';
       alert('El reintento volvió a fallar: ' + (r.error || ''));
     }
   } catch (err) {
     btn.disabled = false;
-    btn.textContent = 'Reintentar';
+    btn.textContent = 'Acción ▾';
+    alert('Sin conexión.');
+  }
+}
+
+// v2.3.0 — "Cargar como Plano": registra el documento con texto
+// vacío + etiqueta "Plano", para PDF de AutoCAD sin texto real
+// extraíble (no tiene sentido seguir reintentando la extracción).
+async function cargarComoPlano(link, card, etiquetasManuales) {
+  const btn = card.querySelector('.btn-accion-menu');
+  btn.disabled = true;
+  btn.textContent = 'Cargando…';
+  try {
+    const r = await llamarBackend('cargarComoPlano', { obraId: obraActual.obraId, email: emailActual, link: link, etiquetas: etiquetasManuales || [] });
+    if (r.ok) {
+      cargarVacios();
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Acción ▾';
+      alert('No se pudo cargar como Plano: ' + (r.error || ''));
+    }
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = 'Acción ▾';
     alert('Sin conexión.');
   }
 }
