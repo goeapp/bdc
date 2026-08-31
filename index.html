@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato</title>
+<title>BDC — Buscador Documental de Contrato v1.4.0</title>
 <!-- PWA (patrón estándar del stack — falta agregar manifest.json + íconos reales al repo) -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0f172a">
@@ -14,10 +14,31 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔎</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
+  index_bdc_v1_4.html — v1.4.0 (31-ago-2026)
+
+  QUÉ CAMBIÓ EN v1.4 (respecto a v1.3) — 2 pendientes chicos de UX,
+  conversados antes de codear (ver bdc.md / preferences, sin handoff
+  aparte por ser cambios chicos):
+   - Panel de Filtros: los chips de Carpetas ahora usan otro par de
+     tokens de la misma paleta (`--border`/`--accent2`, el slate/navy
+     del header) para diferenciarse a simple vista de los de
+     Etiquetas (que siguen en ámbar, `--tag-*`) — antes ambos grupos
+     compartían exactamente el mismo estilo.
+   - Checkbox "Palabra completa" reemplazado por un switch estilo
+     iOS (CSS puro, mismo #chk-palabra-completa por debajo — sin
+     cambios de lógica JS).
+
   index_bdc_v1_3.html — v1.3.0 (31-ago-2026)
 
   QUÉ CAMBIÓ EN v1.3 (respecto a v1.2) — 3 fixes de UX de búsqueda,
   conversados antes de codear (ver Handoff_BDC_v1_15.md):
+   - Fix de proceso: la versión no estaba hardcodeada en ningún lugar
+     visible del archivo (solo en este comentario) — convención del
+     stack que se había pasado por alto en index_bdc_v1.html a
+     index_bdc_v1_2.html. Se suma ahora en 3 lugares: <title>,
+     pantalla de login (debajo del logo BDC) y header de la app
+     (junto al logo BDC). A partir de v1.3, cada entrega actualiza
+     los 3 (más este comentario).
    - Checkbox "Palabra completa" (desactivado por defecto), junto al
      buscador. Viaja como `palabraCompleta` a la action "buscar"
      (bdc_gas_v1_15.gs) — evita falsos positivos tipo "multa" adentro
@@ -169,6 +190,7 @@ input { font-family: inherit; }
   box-shadow   : var(--shadow-md);
 }
 .caja-logo  { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--accent); letter-spacing: 3px; margin-bottom: 4px; }
+.caja-version { font-size: .62rem; color: var(--muted); letter-spacing: .03em; margin-bottom: 4px; }
 .caja-emoji { font-size: 2.2rem; margin-bottom: 10px; display: block; }
 .caja-sub   { font-size: .78rem; color: var(--muted); margin-bottom: 28px; }
 .caja-title { font-size: 1rem; font-weight: 600; margin-bottom: 6px; }
@@ -289,6 +311,7 @@ input { font-family: inherit; }
   border-bottom: 1px solid rgba(255,255,255,.06);
 }
 .hdr-logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; color: var(--accent); letter-spacing: 2px; white-space: nowrap; }
+.hdr-version { font-size: .62rem; color: rgba(255,255,255,.4); white-space: nowrap; }
 .hdr-obra-nombre {
   font-size    : .8rem;
   color        : rgba(255,255,255,.75);
@@ -391,8 +414,35 @@ input { font-family: inherit; }
   transition   : background .15s;
 }
 #btn-buscar:hover { background: #b45309; }
-#buscador-opciones { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
-#chk-palabra-completa { cursor: pointer; accent-color: var(--accent); }
+#buscador-opciones { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+/* v1.4: switch estilo iOS — checkbox real oculto, la apariencia la
+   dan el track (label) y el thumb (::after), sin JS nuevo: sigue
+   siendo #chk-palabra-completa, mismo id, mismo .checked de siempre. */
+.switch-wrap { position: relative; display: inline-block; width: 34px; height: 20px; flex-shrink: 0; }
+.switch-wrap input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.switch-track {
+  position     : absolute;
+  inset        : 0;
+  background   : var(--border);
+  border-radius: 999px;
+  transition   : background .15s;
+  pointer-events: none;
+}
+.switch-track::after {
+  content      : '';
+  position     : absolute;
+  top          : 2px;
+  left         : 2px;
+  width        : 16px;
+  height       : 16px;
+  border-radius: 50%;
+  background   : #fff;
+  box-shadow   : 0 1px 2px rgba(0,0,0,.25);
+  transition   : transform .15s;
+}
+.switch-wrap input:checked + .switch-track { background: var(--accent); }
+.switch-wrap input:checked + .switch-track::after { transform: translateX(14px); }
+.switch-wrap input:focus-visible + .switch-track { outline: 2px solid var(--accent); outline-offset: 2px; }
 #lbl-palabra-completa { font-size: .72rem; color: var(--muted); cursor: pointer; user-select: none; }
 #buscar-contador { font-size: .72rem; color: var(--muted); margin-top: 4px; }
 
@@ -512,6 +562,11 @@ input { font-family: inherit; }
 .faceta-chip:hover  { border-color: var(--accent); }
 .faceta-chip.activa { background: var(--tag-sel); color: var(--tag-sfg); border-color: var(--tag-sel); }
 .faceta-chip-count  { font-size: .68rem; opacity: .75; flex-shrink: 0; }
+/* v1.4: Carpetas usa otro par de tokens de la misma paleta (slate/navy
+   del header) para diferenciarse a simple vista de las Etiquetas (ámbar) */
+.faceta-chip.carpeta { background: var(--border); color: var(--accent2); }
+.faceta-chip.carpeta:hover  { border-color: var(--accent2); }
+.faceta-chip.carpeta.activa { background: var(--accent2); color: #fff; border-color: var(--accent2); }
 .facetas-vacio { font-size: .76rem; color: var(--muted); }
 
 /* ─────────────────────────────────────────────────
@@ -565,6 +620,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
+    <div class="caja-version">v1.4.0</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -621,6 +677,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
+    <span class="hdr-version">v1.4.0</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <span class="hdr-sep"></span>
@@ -639,7 +696,10 @@ input { font-family: inherit; }
           <button id="btn-buscar" onclick="ejecutarBusqueda()">Buscar</button>
         </div>
         <div id="buscador-opciones">
-          <input type="checkbox" id="chk-palabra-completa">
+          <span class="switch-wrap">
+            <input type="checkbox" id="chk-palabra-completa">
+            <span class="switch-track"></span>
+          </span>
           <label id="lbl-palabra-completa" for="chk-palabra-completa">Palabra completa</label>
         </div>
         <div id="buscar-contador"></div>
@@ -1199,7 +1259,8 @@ function renderFacetaGrupo(items, tipo, contId, limpiarBtnId) {
   validos.forEach(function (it) {
     const chip = document.createElement('div');
     const seleccionado = facetasSeleccionadas[tipo].has(it.nombre);
-    chip.className = 'faceta-chip' + (seleccionado ? ' activa' : '');
+    const claseTipo = tipo === 'carpetas' ? ' carpeta' : '';
+    chip.className = 'faceta-chip' + claseTipo + (seleccionado ? ' activa' : '');
     chip.innerHTML = '<span>' + escapeHtml(it.nombre) + '</span><span class="faceta-chip-count">' + it.cantidad + '</span>';
     chip.onclick = function () { toggleFaceta(tipo, it.nombre); };
     cont.appendChild(chip);
