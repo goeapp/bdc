@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v1.4.0</title>
+<title>BDC — Buscador Documental de Contrato v2.0.0</title>
 <!-- PWA (patrón estándar del stack — falta agregar manifest.json + íconos reales al repo) -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0f172a">
@@ -14,6 +14,39 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔎</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
+  index_bdc_v2_0_0.html — v2.0.0 (31-ago-2026)
+
+  QUÉ CAMBIÓ EN v2.0.0 (respecto a v1.4) — pantalla de carga de
+  documentos desde el frontend, conversada en varias rondas antes de
+  codear (ver Handoff_BDC_v2_0_0.md). Salto de versión mayor: hasta
+  ahora la carga vivía 100% en el menú del Sheet.
+   - Botón "Cargar documentos" en el header del buscador, visible
+     solo si `obraActual.esAdminObra` (dato que ya viaja desde
+     listarObrasUsuario) — pantalla nueva (#pantalla-carga), mismo
+     header oscuro, con 2 tabs:
+       · "Cargar documentos": navegador de carpetas (breadcrumb +
+         lista de subcarpetas, un explorarCarpeta por clic — sin
+         estado de navegación en el backend), checkboxes de
+         etiquetas manuales, y 2 botones ("Cargar (solo lo nuevo)" /
+         "Recargar todo esta carpeta") que llaman a la misma action
+         cargarCarpeta con distinto modo.
+       · "Documentos con error": lista de documentos_fallidos con
+         botón Reintentar por fila — persistente (refleja el Sheet),
+         no se vacía sola.
+   - Dos paneles separados, sin mezclar (decisión conversada):
+     "Registro de carga" (efímero, de esta sesión — una tarjeta por
+     cada Cargar/Recargar todo que corriste, con botón Limpiar) vive
+     en la tab de carga; "Documentos con error" es su propia tab.
+   - El registro de carga marca una corrida como incompleta
+     (⚠, con sugerencia de volver a apretar el mismo botón) cuando
+     indexados+salteados+fallidos no llega al total esperado — señal
+     de que probablemente se cortó por el límite de 6 min de Apps
+     Script, no un intento de calcularlo con precisión.
+   - Pantalla de carga oculta en mobile (<720px) — el explorador de
+     carpetas no se diseñó para pantalla chica en esta entrega, mismo
+     criterio que el panel de Facetas (pendiente un drawer, todavía
+     sin construir para ninguno de los dos).
+
   index_bdc_v1_4.html — v1.4.0 (31-ago-2026)
 
   QUÉ CAMBIÓ EN v1.4 (respecto a v1.3) — 2 pendientes chicos de UX,
@@ -602,6 +635,139 @@ input { font-family: inherit; }
 .btn-cerrar-sesion:hover { background: #fee2e2; }
 
 /* ─────────────────────────────────────────────────
+   PANTALLA DE CARGA (v2.0.0, solo admin)
+───────────────────────────────────────────────── */
+#pantalla-carga { display: none; flex-direction: column; height: 100vh; }
+#carga-header { height: var(--header-h); background: var(--accent2); display: flex; align-items: center; padding: 0 18px; gap: 12px; flex-shrink: 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+
+.carga-tabs { display: flex; gap: 4px; padding: 12px 20px 0; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+.carga-tab {
+  padding      : 8px 16px;
+  border       : none;
+  background   : transparent;
+  color        : var(--muted);
+  font-size    : .82rem;
+  font-weight  : 600;
+  border-bottom: 2px solid transparent;
+  transition   : all .15s;
+}
+.carga-tab:hover  { color: var(--text); }
+.carga-tab.activa { color: var(--accent); border-bottom-color: var(--accent); }
+.carga-tab-badge {
+  display      : inline-block;
+  min-width    : 16px;
+  padding      : 0 5px;
+  margin-left  : 6px;
+  border-radius: 999px;
+  background   : var(--danger);
+  color        : #fff;
+  font-size    : .62rem;
+  font-weight  : 700;
+  line-height  : 16px;
+  text-align   : center;
+}
+.carga-tab-badge:empty { display: none; }
+
+.carga-tab-contenido { display: none; flex: 1; overflow-y: auto; padding: 20px; }
+.carga-tab-contenido.activa { display: block; }
+
+.carga-seccion-titulo {
+  display        : flex;
+  align-items    : center;
+  justify-content: space-between;
+  font-size      : .74rem;
+  font-weight    : 700;
+  text-transform : uppercase;
+  letter-spacing : .06em;
+  color          : var(--muted);
+  margin         : 18px 0 8px;
+}
+
+#explorador-wrap { max-width: 640px; }
+#explorador-breadcrumb { font-size: .78rem; color: var(--muted); margin-bottom: 6px; display: flex; flex-wrap: wrap; align-items: center; }
+.breadcrumb-item { cursor: pointer; }
+.breadcrumb-item:hover { color: var(--accent); text-decoration: underline; }
+.breadcrumb-item:last-child { color: var(--text); font-weight: 600; cursor: default; }
+.breadcrumb-item:last-child:hover { text-decoration: none; }
+.breadcrumb-sep { margin: 0 6px; color: var(--border); }
+#explorador-info { font-size: .82rem; color: var(--text); margin-bottom: 10px; }
+
+#explorador-lista { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+.explorador-item {
+  display        : flex;
+  align-items    : center;
+  justify-content: space-between;
+  padding        : 11px 16px;
+  font-size      : .84rem;
+  cursor         : pointer;
+  border-bottom  : 1px solid var(--border);
+  transition     : background .1s;
+}
+.explorador-item:last-child { border-bottom: none; }
+.explorador-item:hover { background: var(--bg); }
+.explorador-item-flecha { color: var(--muted); }
+
+.etiquetas-checkboxes-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.etiqueta-checkbox {
+  display      : flex;
+  align-items  : center;
+  gap          : 5px;
+  padding      : 5px 10px;
+  border       : 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size    : .76rem;
+  cursor       : pointer;
+  background   : var(--surface);
+}
+.etiqueta-checkbox:has(input:checked) { border-color: var(--accent); background: var(--tag-bg); }
+
+#explorador-acciones { display: flex; gap: 10px; margin-top: 18px; }
+.btn-carga {
+  padding      : 10px 18px;
+  border       : none;
+  border-radius: var(--radius-sm);
+  background   : var(--accent);
+  color        : #fff;
+  font-size    : .82rem;
+  font-weight  : 600;
+  transition   : background .15s, opacity .15s;
+}
+.btn-carga:hover { background: #b45309; }
+.btn-carga:disabled { opacity: .5; cursor: not-allowed; }
+.btn-carga-secundario { background: var(--accent2); }
+.btn-carga-secundario:hover { background: #1e293b; }
+
+#registro-carga-wrap { max-width: 640px; }
+#registro-carga-lista { display: flex; flex-direction: column; gap: 8px; }
+.registro-card { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; background: var(--surface); }
+.registro-card-titulo { font-size: .8rem; font-weight: 600; }
+.registro-card-detalle { font-size: .76rem; color: var(--muted); margin-top: 3px; }
+.registro-ok .registro-card-titulo { color: var(--success); }
+.registro-incompleto { border-color: #fde68a; background: #fffbeb; }
+.registro-incompleto .registro-card-detalle { color: #92400e; }
+.registro-error { border-color: #fecaca; background: #fef2f2; }
+.registro-error .registro-card-detalle { color: #991b1b; }
+
+#pendientes-lista { display: flex; flex-direction: column; gap: 10px; max-width: 720px; }
+.pendiente-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; background: var(--surface); }
+.pendiente-doc { font-size: .86rem; font-weight: 600; }
+.pendiente-carpeta { font-size: .72rem; color: var(--muted); margin-top: 2px; }
+.pendiente-error { font-size: .78rem; color: #991b1b; margin: 8px 0; line-height: 1.5; }
+.pendiente-meta { font-size: .68rem; color: var(--muted); margin-bottom: 10px; }
+.btn-reintentar {
+  padding      : 6px 14px;
+  border       : 1px solid var(--accent2);
+  border-radius: var(--radius-sm);
+  background   : var(--surface);
+  color        : var(--accent2);
+  font-size    : .76rem;
+  font-weight  : 600;
+  transition   : all .15s;
+}
+.btn-reintentar:hover:not(:disabled) { background: var(--accent2); color: #fff; }
+.btn-reintentar:disabled { opacity: .6; cursor: not-allowed; }
+
+/* ─────────────────────────────────────────────────
    RESPONSIVE
 ───────────────────────────────────────────────── */
 @media (max-width: 720px) {
@@ -610,6 +776,7 @@ input { font-family: inherit; }
   #panel-facetas { width: 100% !important; max-width: none; min-width: 0; max-height: 40vh; }
   .resizer { display: none; }
   .hdr-email { display: none; }
+  #btn-cargar-datos { display: none !important; }
 }
 </style>
 </head>
@@ -620,7 +787,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v1.4.0</div>
+    <div class="caja-version">v2.0.0</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -677,9 +844,10 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v1.4.0</span>
+    <span class="hdr-version">v2.0.0</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
+    <button class="hdr-btn-cambiar-obra" id="btn-cargar-datos" style="display:none" onclick="mostrarPantallaCarga()">Cargar documentos</button>
     <span class="hdr-sep"></span>
     <span class="hdr-email" id="hdr-email"></span>
   </header>
@@ -733,6 +901,56 @@ input { font-family: inherit; }
           <div class="faceta-lista" id="faceta-carpetas"></div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ PANTALLA — CARGA DE DOCUMENTOS (solo admin, v2.0.0) ═══════════════ -->
+<div id="pantalla-carga">
+  <header id="carga-header">
+    <span class="hdr-logo">BDC</span>
+    <span class="hdr-version">v2.0.0</span>
+    <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
+    <button class="hdr-btn-cambiar-obra" onclick="volverABuscador()">← Buscador</button>
+    <span class="hdr-sep"></span>
+    <span class="hdr-email" id="carga-hdr-email"></span>
+  </header>
+
+  <div id="carga-tabs">
+    <button class="carga-tab activa" id="tab-cargar" onclick="cambiarTabCarga('cargar')">Cargar documentos</button>
+    <button class="carga-tab" id="tab-pendientes" onclick="cambiarTabCarga('pendientes')">Documentos con error<span id="pendientes-count" class="carga-tab-badge"></span></button>
+  </div>
+
+  <!-- TAB: Cargar documentos -->
+  <div id="tab-contenido-cargar" class="carga-tab-contenido activa">
+    <div id="explorador-wrap">
+      <div id="explorador-breadcrumb"></div>
+      <div id="explorador-info"></div>
+      <div id="explorador-lista"></div>
+      <div id="explorador-etiquetas">
+        <div class="carga-seccion-titulo">Etiquetas manuales para este lote (opcional)</div>
+        <div id="etiquetas-checkboxes" class="etiquetas-checkboxes-grid"></div>
+      </div>
+      <div id="explorador-acciones">
+        <button id="btn-cargar-nuevo" class="btn-carga" onclick="ejecutarCarga('faltantes')">Cargar (solo lo nuevo)</button>
+        <button id="btn-recargar-todo" class="btn-carga btn-carga-secundario" onclick="ejecutarCarga('todo')">Recargar todo esta carpeta</button>
+      </div>
+    </div>
+    <div id="registro-carga-wrap">
+      <div class="carga-seccion-titulo">
+        <span>Registro de carga</span>
+        <button id="btn-limpiar-registro" class="faceta-limpiar visible" onclick="limpiarRegistroCarga()">Limpiar</button>
+      </div>
+      <div id="registro-carga-lista">
+        <div class="facetas-vacio">Sin cargas en esta sesión todavía.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: Documentos con error -->
+  <div id="tab-contenido-pendientes" class="carga-tab-contenido">
+    <div id="pendientes-lista">
+      <div class="resultados-cargando">Cargando...</div>
     </div>
   </div>
 </div>
@@ -1070,6 +1288,7 @@ function mostrarBuscador() {
   mostrarPantalla('app-visible');
   document.getElementById('hdr-obra-nombre').textContent = obraActual.nombreObra;
   document.getElementById('hdr-email').textContent = emailActual;
+  document.getElementById('btn-cargar-datos').style.display = obraActual.esAdminObra ? 'inline-block' : 'none';
   document.getElementById('input-buscar').value = '';
   document.getElementById('chk-palabra-completa').checked = false;
   facetasSeleccionadas.etiquetas.clear();
@@ -1347,11 +1566,278 @@ function mostrarPantalla(id) {
   document.getElementById('login-screen').classList.remove('visible');
   document.getElementById('obras-screen').classList.remove('visible');
   document.getElementById('app').style.display = 'none';
+  document.getElementById('pantalla-carga').style.display = 'none';
 
   if (id === 'app-visible') {
     document.getElementById('app').style.display = 'flex';
+  } else if (id === 'carga-visible') {
+    document.getElementById('pantalla-carga').style.display = 'flex';
   } else {
     document.getElementById(id).classList.add('visible');
+  }
+}
+
+// ── PANTALLA DE CARGA (v2.0.0, solo admin) ─────────────────────
+let breadcrumbCarga = [];       // [{id, nombre}]
+let cantidadPdfActualCarga = 0;
+let registroCarga = [];         // [{id, camino, esperados, modo, estado, detalle, resultado}]
+let registroCargaSeq = 0;
+
+function mostrarPantallaCarga() {
+  mostrarPantalla('carga-visible');
+  document.getElementById('carga-hdr-obra-nombre').textContent = obraActual.nombreObra;
+  document.getElementById('carga-hdr-email').textContent = emailActual;
+  cambiarTabCarga('cargar');
+  breadcrumbCarga = [];
+  cargarNodoCarpeta(null);
+  cargarEtiquetasDisponiblesCarga();
+  cargarPendientes(); // para el badge del tab, aunque arranque en "Cargar documentos"
+}
+
+function volverABuscador() {
+  mostrarPantalla('app-visible');
+}
+
+function cambiarTabCarga(tab) {
+  document.getElementById('tab-cargar').classList.toggle('activa', tab === 'cargar');
+  document.getElementById('tab-pendientes').classList.toggle('activa', tab === 'pendientes');
+  document.getElementById('tab-contenido-cargar').classList.toggle('activa', tab === 'cargar');
+  document.getElementById('tab-contenido-pendientes').classList.toggle('activa', tab === 'pendientes');
+  if (tab === 'pendientes') cargarPendientes();
+}
+
+// ── Explorador de carpetas ──────────────────────────────────
+async function cargarNodoCarpeta(folderId) {
+  const lista = document.getElementById('explorador-lista');
+  lista.innerHTML = '<div class="resultados-cargando">Cargando...</div>';
+  try {
+    const r = await llamarBackend('explorarCarpeta', { obraId: obraActual.obraId, email: emailActual, folderId: folderId || undefined });
+    if (!r.ok) {
+      lista.innerHTML = '<div class="resultados-vacio">' + escapeHtml(r.error || 'Error al explorar la carpeta.') + '</div>';
+      return;
+    }
+    if (breadcrumbCarga.length === 0) {
+      breadcrumbCarga = [{ id: r.carpeta.folderId, nombre: r.carpeta.nombre }];
+    }
+    renderExplorador(r.carpeta);
+  } catch (err) {
+    lista.innerHTML = '<div class="resultados-vacio">Sin conexión. Revisá tu internet e intentá de nuevo.</div>';
+  }
+}
+
+function renderExplorador(carpeta) {
+  cantidadPdfActualCarga = carpeta.cantidadPdf;
+
+  document.getElementById('explorador-breadcrumb').innerHTML = breadcrumbCarga.map(function (n, i) {
+    const esUltimo = i === breadcrumbCarga.length - 1;
+    return '<span class="breadcrumb-item" onclick="' + (esUltimo ? '' : 'irABreadcrumb(' + i + ')') + '">' + escapeHtml(n.nombre) + '</span>' +
+      (esUltimo ? '' : '<span class="breadcrumb-sep">›</span>');
+  }).join('');
+
+  document.getElementById('explorador-info').textContent =
+    carpeta.cantidadPdf + (carpeta.cantidadPdf === 1 ? ' PDF suelto en esta carpeta.' : ' PDF sueltos en esta carpeta.');
+
+  const lista = document.getElementById('explorador-lista');
+  if (!carpeta.subcarpetas || carpeta.subcarpetas.length === 0) {
+    lista.innerHTML = '<div class="explorador-item" style="cursor:default;color:var(--muted);">Sin subcarpetas</div>';
+    return;
+  }
+  lista.innerHTML = '';
+  carpeta.subcarpetas.forEach(function (sub) {
+    const item = document.createElement('div');
+    item.className = 'explorador-item';
+    item.innerHTML = '<span>' + escapeHtml(sub.nombre) + '</span><span class="explorador-item-flecha">›</span>';
+    item.onclick = function () { entrarCarpeta(sub.id, sub.nombre); };
+    lista.appendChild(item);
+  });
+}
+
+function entrarCarpeta(id, nombre) {
+  breadcrumbCarga.push({ id: id, nombre: nombre });
+  cargarNodoCarpeta(id);
+}
+
+function irABreadcrumb(index) {
+  const nodo = breadcrumbCarga[index];
+  breadcrumbCarga = breadcrumbCarga.slice(0, index + 1);
+  cargarNodoCarpeta(nodo.id);
+}
+
+// ── Etiquetas manuales del lote ─────────────────────────────
+async function cargarEtiquetasDisponiblesCarga() {
+  const cont = document.getElementById('etiquetas-checkboxes');
+  cont.innerHTML = 'Cargando...';
+  try {
+    const r = await llamarBackend('listarEtiquetasDisponibles', { obraId: obraActual.obraId, email: emailActual });
+    if (!r.ok || !r.etiquetas.length) {
+      cont.innerHTML = '<div class="facetas-vacio">Sin etiquetas manuales cargadas para esta obra.</div>';
+      return;
+    }
+    cont.innerHTML = '';
+    r.etiquetas.forEach(function (et) {
+      const label = document.createElement('label');
+      label.className = 'etiqueta-checkbox';
+      label.innerHTML = '<input type="checkbox" value="' + escapeHtml(et) + '"> ' + escapeHtml(et);
+      cont.appendChild(label);
+    });
+  } catch (err) {
+    cont.innerHTML = '<div class="facetas-vacio">Sin conexión.</div>';
+  }
+}
+
+function etiquetasElegidasCarga() {
+  return Array.from(document.querySelectorAll('#etiquetas-checkboxes input:checked')).map(function (i) { return i.value; });
+}
+
+// ── Ejecutar carga / relectura ──────────────────────────────
+async function ejecutarCarga(modo) {
+  if (breadcrumbCarga.length === 0) return;
+  const folderId = breadcrumbCarga[breadcrumbCarga.length - 1].id;
+  const camino = breadcrumbCarga.map(function (n) { return n.nombre; }).join(' > ');
+  const etiquetas = etiquetasElegidasCarga();
+  const esperados = cantidadPdfActualCarga;
+
+  const btnNuevo = document.getElementById('btn-cargar-nuevo');
+  const btnTodo = document.getElementById('btn-recargar-todo');
+  btnNuevo.disabled = true;
+  btnTodo.disabled = true;
+
+  const idEntrada = agregarEntradaRegistro(camino, esperados, modo);
+
+  try {
+    const r = await llamarBackend('cargarCarpeta', {
+      obraId: obraActual.obraId, email: emailActual, folderId: folderId,
+      camino: camino, etiquetas: etiquetas, modo: modo
+    });
+    if (!r.ok) {
+      actualizarEntradaRegistro(idEntrada, { error: r.error || 'Error al cargar.' });
+    } else {
+      actualizarEntradaRegistro(idEntrada, r.resultado);
+    }
+  } catch (err) {
+    actualizarEntradaRegistro(idEntrada, { error: 'Sin conexión, o la carga se cortó a mitad de camino. Si fue por tiempo, lo ya procesado quedó guardado — volvé a apretar el mismo botón sobre esta carpeta.' });
+  } finally {
+    btnNuevo.disabled = false;
+    btnTodo.disabled = false;
+  }
+}
+
+// ── Panel 1: Registro de carga (efímero, de esta sesión) ────
+function agregarEntradaRegistro(camino, esperados, modo) {
+  const id = 'reg-' + (++registroCargaSeq);
+  registroCarga.unshift({ id: id, camino: camino, esperados: esperados, modo: modo, estado: 'cargando', detalle: null, resultado: null });
+  renderRegistroCarga();
+  return id;
+}
+
+function actualizarEntradaRegistro(id, resultado) {
+  const entrada = registroCarga.find(function (e) { return e.id === id; });
+  if (!entrada) return;
+
+  if (resultado.error) {
+    entrada.estado = 'error';
+    entrada.detalle = resultado.error;
+  } else {
+    entrada.resultado = resultado;
+    const procesados = (resultado.documentosIndexados || 0) + (resultado.documentosSalteados || 0) + (resultado.documentosFallidos || 0);
+    entrada.estado = procesados < entrada.esperados ? 'incompleto' : 'ok';
+  }
+  renderRegistroCarga();
+  cargarPendientes(); // por si esta corrida sumó (o resolvió) documentos con error
+}
+
+function renderRegistroCarga() {
+  const cont = document.getElementById('registro-carga-lista');
+  if (registroCarga.length === 0) {
+    cont.innerHTML = '<div class="facetas-vacio">Sin cargas en esta sesión todavía.</div>';
+    return;
+  }
+  cont.innerHTML = '';
+  registroCarga.forEach(function (e) {
+    const card = document.createElement('div');
+    card.className = 'registro-card registro-' + e.estado;
+    const modoTxt = e.modo === 'todo' ? 'Recargar todo' : 'Cargar (solo nuevo)';
+
+    let resumen;
+    if (e.estado === 'cargando') {
+      resumen = 'Cargando…';
+    } else if (e.estado === 'error') {
+      resumen = escapeHtml(e.detalle);
+    } else {
+      const r = e.resultado;
+      resumen = r.documentosIndexados + ' indexados, ' + r.documentosSalteados + ' salteados' +
+        (r.documentosFallidos ? ', ' + r.documentosFallidos + ' con error' : '');
+      if (e.estado === 'incompleto') {
+        resumen += ' — se esperaban ' + e.esperados + '. Puede haberse cortado por tiempo: volvé a cargar esta misma carpeta.';
+      }
+    }
+
+    const icono = { cargando: '⏳', ok: '✓', incompleto: '⚠', error: '✕' }[e.estado];
+    card.innerHTML =
+      '<div class="registro-card-titulo">' + icono + ' ' + escapeHtml(modoTxt) + ' — ' + escapeHtml(e.camino) + '</div>' +
+      '<div class="registro-card-detalle">' + resumen + '</div>';
+    cont.appendChild(card);
+  });
+}
+
+function limpiarRegistroCarga() {
+  registroCarga = [];
+  renderRegistroCarga();
+}
+
+// ── Panel 2: Documentos con error (persistente, documentos_fallidos) ──
+async function cargarPendientes() {
+  const badge = document.getElementById('pendientes-count');
+  const cont = document.getElementById('pendientes-lista');
+  try {
+    const r = await llamarBackend('listarPendientesCarga', { obraId: obraActual.obraId, email: emailActual });
+    if (!r.ok) {
+      badge.textContent = '';
+      if (cont) cont.innerHTML = '<div class="resultados-vacio">Error al cargar.</div>';
+      return;
+    }
+    badge.textContent = r.pendientes.length || '';
+    if (!cont) return;
+
+    if (r.pendientes.length === 0) {
+      cont.innerHTML = '<div class="resultados-vacio">Sin documentos con error. 🎉</div>';
+      return;
+    }
+    cont.innerHTML = '';
+    r.pendientes.forEach(function (p) {
+      const card = document.createElement('div');
+      card.className = 'pendiente-card';
+      card.innerHTML =
+        '<div class="pendiente-doc">' + escapeHtml(p.documento) + '</div>' +
+        '<div class="pendiente-carpeta">' + escapeHtml(p.carpeta || '') + '</div>' +
+        '<div class="pendiente-error">' + escapeHtml(p.error || '') + '</div>' +
+        '<div class="pendiente-meta">Intentos: ' + escapeHtml(String(p.cantidadIntentos || '')) + '</div>' +
+        '<button class="btn-reintentar">Reintentar</button>';
+      card.querySelector('.btn-reintentar').onclick = function () { reintentarPendiente(p.link, card); };
+      cont.appendChild(card);
+    });
+  } catch (err) {
+    if (cont) cont.innerHTML = '<div class="resultados-vacio">Sin conexión.</div>';
+  }
+}
+
+async function reintentarPendiente(link, card) {
+  const btn = card.querySelector('.btn-reintentar');
+  btn.disabled = true;
+  btn.textContent = 'Reintentando…';
+  try {
+    const r = await llamarBackend('reintentarPendiente', { obraId: obraActual.obraId, email: emailActual, link: link, etiquetas: [] });
+    if (r.ok) {
+      cargarPendientes();
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Reintentar';
+      alert('El reintento volvió a fallar: ' + (r.error || ''));
+    }
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = 'Reintentar';
+    alert('Sin conexión.');
   }
 }
 
