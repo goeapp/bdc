@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v2.1.0</title>
+<title>BDC — Buscador Documental de Contrato v2.2.0</title>
 <!-- PWA (patrón estándar del stack — falta agregar manifest.json + íconos reales al repo) -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0f172a">
@@ -14,6 +14,38 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔎</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
+  index_bdc_v2_2_0.html — v2.2.0 (31-ago-2026)
+
+  QUÉ CAMBIÓ EN v2.2.0 (respecto a v2.1.0) — todo junto en una sola
+  entrega (decisión de Ale: están en modo desarrollo, van a recargar
+  todo de nuevo, no hay que preocuparse por migración de datos). Un
+  bug real detectado probando v2.1.0, un bug chico de UX, y 3 mejoras
+  de diseño — todo conversado antes de codear.
+   - BUG: durante una carga, antes solo se deshabilitaban los 2
+     botones Cargar/Recargar — el resto de la pantalla (tabs,
+     breadcrumb, subcarpetas, etiquetas, "← Buscador", Limpiar)
+     seguía activo. Ahora bloqueaCargaUI(true/false) deshabilita todo
+     mientras corre una acción.
+   - Nueva tab "Documentos vacíos" (mismo patrón que "Documentos con
+     error"): PDF procesados sin error pero sin texto extraíble
+     (ver changelog del backend, bdc_gas_v2_2_0.gs). El registro de
+     carga ahora muestra 4 números: indexados/salteados/vacíos/
+     fallidos.
+   - Fix: al reintentar un documento (desde cualquiera de las 2
+     listas) ahora se reaplican las etiquetas manuales que tenía la
+     carga original — antes se perdían siempre (se mandaban vacías).
+   - Etiquetas manuales: los checkboxes pasan a ser pills de 2
+     estados (mismo lenguaje visual que los chips de Facetas del
+     buscador) — más moderno, misma lógica de selección por debajo.
+   - Subcarpetas: el ítem de la lista suma un ícono de carpeta antes
+     del nombre.
+   - Panel Facetas del buscador (no en Cargar documentos): el grupo
+     "Carpetas" ahora comparte la altura disponible con "Etiquetas"
+     de forma dinámica (antes tenía un scroll fijo bajo, quedaba
+     achicado); cada chip de carpeta muestra solo el último segmento
+     del camino, con la ruta completa como tooltip nativo (title) al
+     pasar el mouse.
+
   index_bdc_v2_1_0.html — v2.1.0 (31-ago-2026)
 
   QUÉ CAMBIÓ EN v2.1.0 (respecto a v2.0.0) — rediseño quirúrgico de
@@ -592,8 +624,13 @@ input { font-family: inherit; }
 /* ─────────────────────────────────────────────────
    PANEL FACETAS
 ───────────────────────────────────────────────── */
-#facetas-body { flex: 1; overflow-y: auto; padding: 4px 16px 16px; }
-.faceta-grupo { margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+/* v2.2.0 — antes .faceta-lista tenía un scroll fijo de 200px cada
+   grupo, así que "Carpetas" quedaba achicado con espacio libre
+   debajo en el panel. Ahora #facetas-body es una columna flex y
+   cada grupo (.faceta-grupo) se reparte la altura disponible por
+   igual, con su propio scroll interno cuando el contenido no entra. */
+#facetas-body { flex: 1; overflow: hidden; padding: 4px 16px 16px; display: flex; flex-direction: column; }
+.faceta-grupo { flex: 1; min-height: 0; display: flex; flex-direction: column; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
 .faceta-grupo:last-child { border-bottom: none; margin-bottom: 0; }
 .faceta-grupo-titulo {
   font-size     : .67rem;
@@ -605,6 +642,7 @@ input { font-family: inherit; }
   display       : flex;
   align-items   : center;
   justify-content: space-between;
+  flex-shrink   : 0;
 }
 .faceta-limpiar {
   font-size : .64rem;
@@ -616,7 +654,7 @@ input { font-family: inherit; }
   display   : none;
 }
 .faceta-limpiar.visible { display: inline; }
-.faceta-lista { display: flex; flex-direction: column; gap: 4px; max-height: 200px; overflow-y: auto; padding-right: 2px; }
+.faceta-lista { display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 0; overflow-y: auto; padding-right: 2px; }
 .faceta-chip {
   display      : flex;
   align-items  : center;
@@ -781,6 +819,8 @@ input { font-family: inherit; }
 .carga-seccion-titulo:first-child { margin-top: 0; }
 
 #explorador-breadcrumb { font-size: .78rem; color: var(--muted); margin-bottom: 10px; display: flex; flex-wrap: wrap; align-items: center; }
+/* v2.2.0 — bloqueo visual mientras corre una carga (bug fix) */
+#explorador-breadcrumb.bloqueado, #explorador-lista.bloqueado, #etiquetas-checkboxes.bloqueado { pointer-events: none; opacity: .5; }
 .breadcrumb-item { cursor: pointer; }
 .breadcrumb-item:hover { color: var(--accent); text-decoration: underline; }
 .breadcrumb-item:last-child { color: var(--text); font-weight: 600; cursor: default; }
@@ -817,21 +857,27 @@ input { font-family: inherit; }
 }
 .explorador-item:last-child { border-bottom: none; }
 .explorador-item:hover { background: var(--bg); }
+.explorador-item:hover .explorador-item-icono { color: var(--accent); }
+.explorador-item-nombre { display: flex; align-items: center; gap: 10px; }
+.explorador-item-icono { color: var(--muted); flex-shrink: 0; transition: color .1s; }
 .explorador-item-flecha { color: var(--muted); }
 
-.etiquetas-checkboxes-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
-.etiqueta-checkbox {
-  display      : flex;
-  align-items  : center;
-  gap          : 5px;
-  padding      : 5px 10px;
-  border       : 1px solid var(--border);
+/* v2.2.0 — pill de 2 estados en vez de checkbox+label, mismo
+   lenguaje visual que .faceta-chip del buscador. */
+.etiquetas-pill-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.etiqueta-pill {
+  padding      : 5px 12px;
   border-radius: var(--radius-sm);
+  background   : var(--tag-bg);
+  color        : var(--tag-fg);
+  border       : 1px solid transparent;
   font-size    : .76rem;
+  font-weight  : 500;
   cursor       : pointer;
-  background   : var(--surface);
+  transition   : all .15s;
 }
-.etiqueta-checkbox:has(input:checked) { border-color: var(--accent); background: var(--tag-bg); }
+.etiqueta-pill:hover  { border-color: var(--accent); }
+.etiqueta-pill.activa { background: var(--tag-sel); color: var(--tag-sfg); }
 
 /* v2.1.0 — alta de etiquetas nuevas (Create, sin editar ni borrar) */
 #etiqueta-nueva-fila { display: flex; gap: 8px; }
@@ -925,6 +971,13 @@ input { font-family: inherit; }
 .btn-reintentar:hover:not(:disabled) { background: var(--accent2); color: #fff; }
 .btn-reintentar:disabled { opacity: .6; cursor: not-allowed; }
 
+/* v2.2.0 — Documentos vacíos: mismo patrón que "con error" pero sin
+   connotación de falla (badge y motivo en tono neutro, no rojo). */
+.carga-tab-badge-neutro { background: var(--muted); }
+.vacios-intro { font-size: .78rem; color: var(--muted); line-height: 1.5; margin-bottom: 16px; max-width: 720px; }
+.vacio-motivo { font-size: .78rem; color: var(--text); margin: 8px 0; line-height: 1.5; }
+.vacio-card { border-color: var(--border); }
+
 /* ─────────────────────────────────────────────────
    RESPONSIVE
 ───────────────────────────────────────────────── */
@@ -945,7 +998,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v2.1.0</div>
+    <div class="caja-version">v2.2.0</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -1002,7 +1055,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v2.1.0</span>
+    <span class="hdr-version">v2.2.0</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <button class="hdr-btn-cambiar-obra" id="btn-cargar-datos" style="display:none" onclick="mostrarPantallaCarga()">Cargar documentos</button>
@@ -1067,9 +1120,9 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v2.1.0</span>
+    <span class="hdr-version">v2.2.0</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
-    <button class="hdr-btn-cambiar-obra" onclick="volverABuscador()">← Buscador</button>
+    <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
     <span class="hdr-email" id="carga-hdr-email"></span>
   </header>
@@ -1077,6 +1130,7 @@ input { font-family: inherit; }
   <div id="carga-tabs">
     <button class="carga-tab activa" id="tab-cargar" onclick="cambiarTabCarga('cargar')">Cargar documentos</button>
     <button class="carga-tab" id="tab-pendientes" onclick="cambiarTabCarga('pendientes')">Documentos con error<span id="pendientes-count" class="carga-tab-badge"></span></button>
+    <button class="carga-tab" id="tab-vacios" onclick="cambiarTabCarga('vacios')">Documentos vacíos<span id="vacios-count" class="carga-tab-badge carga-tab-badge-neutro"></span></button>
   </div>
 
   <!-- TAB: Cargar documentos -->
@@ -1092,7 +1146,7 @@ input { font-family: inherit; }
       <div id="explorador-lista"></div>
       <div id="explorador-etiquetas">
         <div class="carga-seccion-titulo">Etiquetas manuales para este lote (opcional)</div>
-        <div id="etiquetas-checkboxes" class="etiquetas-checkboxes-grid"></div>
+        <div id="etiquetas-checkboxes" class="etiquetas-pill-grid"></div>
         <div id="etiqueta-nueva-fila">
           <input type="text" id="input-etiqueta-nueva" placeholder="Nueva etiqueta…" maxlength="40" onkeydown="if(event.key==='Enter'){event.preventDefault();agregarEtiquetaNueva();}">
           <button class="btn-agregar-etiqueta" id="btn-agregar-etiqueta" onclick="agregarEtiquetaNueva()">Agregar</button>
@@ -1118,6 +1172,14 @@ input { font-family: inherit; }
   <!-- TAB: Documentos con error -->
   <div id="tab-contenido-pendientes" class="carga-tab-contenido">
     <div id="pendientes-lista">
+      <div class="resultados-cargando">Cargando...</div>
+    </div>
+  </div>
+
+  <!-- TAB: Documentos vacíos (v2.2.0) -->
+  <div id="tab-contenido-vacios" class="carga-tab-contenido">
+    <div class="vacios-intro">PDF procesados sin error, pero sin texto extraíble (por ejemplo, escaneados sin capa de texto). No son buscables hasta reintentarlos.</div>
+    <div id="vacios-lista">
       <div class="resultados-cargando">Cargando...</div>
     </div>
   </div>
@@ -1660,7 +1722,16 @@ function renderFacetaGrupo(items, tipo, contId, limpiarBtnId) {
     const seleccionado = facetasSeleccionadas[tipo].has(it.nombre);
     const claseTipo = tipo === 'carpetas' ? ' carpeta' : '';
     chip.className = 'faceta-chip' + claseTipo + (seleccionado ? ' activa' : '');
-    chip.innerHTML = '<span>' + escapeHtml(it.nombre) + '</span><span class="faceta-chip-count">' + it.cantidad + '</span>';
+    // v2.2.0 — en Carpetas, it.nombre es el camino completo (ej.
+    // "Obra > Pliego > D - Estandares..."); se muestra solo el
+    // último segmento y el camino completo queda como tooltip nativo.
+    let nombreVisible = it.nombre;
+    if (tipo === 'carpetas' && it.nombre.indexOf(' > ') !== -1) {
+      const segmentos = it.nombre.split(' > ');
+      nombreVisible = segmentos[segmentos.length - 1];
+      chip.title = it.nombre;
+    }
+    chip.innerHTML = '<span>' + escapeHtml(nombreVisible) + '</span><span class="faceta-chip-count">' + it.cantidad + '</span>';
     chip.onclick = function () { toggleFaceta(tipo, it.nombre); };
     cont.appendChild(chip);
   });
@@ -1769,9 +1840,11 @@ function mostrarPantallaCarga() {
   document.getElementById('carga-hdr-email').textContent = emailActual;
   cambiarTabCarga('cargar');
   breadcrumbCarga = [];
+  etiquetasSeleccionadasCarga = new Set(); // v2.2.0 — no arrastrar selección entre obras
   cargarNodoCarpeta(null);
   cargarEtiquetasDisponiblesCarga();
   cargarPendientes(); // para el badge del tab, aunque arranque en "Cargar documentos"
+  cargarVacios();     // v2.2.0 — ídem, para el badge de "Documentos vacíos"
 }
 
 // v2.1.0 — antes la vista del buscador quedaba con los datos de
@@ -1793,9 +1866,12 @@ function volverABuscador() {
 function cambiarTabCarga(tab) {
   document.getElementById('tab-cargar').classList.toggle('activa', tab === 'cargar');
   document.getElementById('tab-pendientes').classList.toggle('activa', tab === 'pendientes');
+  document.getElementById('tab-vacios').classList.toggle('activa', tab === 'vacios');
   document.getElementById('tab-contenido-cargar').classList.toggle('activa', tab === 'cargar');
   document.getElementById('tab-contenido-pendientes').classList.toggle('activa', tab === 'pendientes');
+  document.getElementById('tab-contenido-vacios').classList.toggle('activa', tab === 'vacios');
   if (tab === 'pendientes') cargarPendientes();
+  if (tab === 'vacios') cargarVacios();
 }
 
 // ── Explorador de carpetas ──────────────────────────────────
@@ -1853,7 +1929,11 @@ function renderExplorador(carpeta) {
   carpeta.subcarpetas.forEach(function (sub) {
     const item = document.createElement('div');
     item.className = 'explorador-item';
-    item.innerHTML = '<span>' + escapeHtml(sub.nombre) + '</span><span class="explorador-item-flecha">›</span>';
+    item.innerHTML =
+      '<span class="explorador-item-nombre">' +
+      '<svg class="explorador-item-icono" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>' +
+      '<span>' + escapeHtml(sub.nombre) + '</span></span>' +
+      '<span class="explorador-item-flecha">›</span>';
     item.onclick = function () { entrarCarpeta(sub.id, sub.nombre); };
     lista.appendChild(item);
   });
@@ -1894,9 +1974,13 @@ function irABreadcrumb(index) {
 }
 
 // ── Etiquetas manuales del lote ─────────────────────────────
+// v2.2.0 — Set con las etiquetas manuales tildadas (antes vivía en
+// los checkbox marcados del DOM; ahora son pills, así que el estado
+// de selección se guarda acá y se refleja con la clase .activa).
+let etiquetasSeleccionadasCarga = new Set();
+
 async function cargarEtiquetasDisponiblesCarga() {
   const cont = document.getElementById('etiquetas-checkboxes');
-  const yaElegidas = etiquetasElegidasCarga(); // v2.1.0 — se preservan al refrescar tras un alta
   cont.innerHTML = 'Cargando...';
   try {
     const r = await llamarBackend('listarEtiquetasDisponibles', { obraId: obraActual.obraId, email: emailActual });
@@ -1906,11 +1990,16 @@ async function cargarEtiquetasDisponiblesCarga() {
     }
     cont.innerHTML = '';
     r.etiquetas.forEach(function (et) {
-      const label = document.createElement('label');
-      label.className = 'etiqueta-checkbox';
-      const marcada = yaElegidas.indexOf(et) !== -1;
-      label.innerHTML = '<input type="checkbox" value="' + escapeHtml(et) + '"' + (marcada ? ' checked' : '') + '> ' + escapeHtml(et);
-      cont.appendChild(label);
+      const pill = document.createElement('button');
+      pill.type = 'button';
+      pill.className = 'etiqueta-pill' + (etiquetasSeleccionadasCarga.has(et) ? ' activa' : '');
+      pill.textContent = et;
+      pill.onclick = function () {
+        if (etiquetasSeleccionadasCarga.has(et)) etiquetasSeleccionadasCarga.delete(et);
+        else etiquetasSeleccionadasCarga.add(et);
+        pill.classList.toggle('activa');
+      };
+      cont.appendChild(pill);
     });
   } catch (err) {
     cont.innerHTML = '<div class="facetas-vacio">Sin conexión.</div>';
@@ -1918,7 +2007,7 @@ async function cargarEtiquetasDisponiblesCarga() {
 }
 
 function etiquetasElegidasCarga() {
-  return Array.from(document.querySelectorAll('#etiquetas-checkboxes input:checked')).map(function (i) { return i.value; });
+  return Array.from(etiquetasSeleccionadasCarga);
 }
 
 // v2.1.0 — alta de etiquetas nuevas al catálogo de la obra (Create,
@@ -1976,6 +2065,24 @@ function cerrarConfirmCarga() {
 }
 
 // ── Ejecutar carga / relectura ──────────────────────────────
+// v2.2.0 — BUG fix: antes solo se deshabilitaban los 2 botones de
+// Cargar/Recargar; el resto de la pantalla (tabs, breadcrumb,
+// subcarpetas, etiquetas, "← Buscador", Limpiar) seguía activo
+// mientras corría una carga. Ahora se bloquea todo.
+function bloquearCargaUI(bloqueada) {
+  document.getElementById('btn-cargar-nuevo').disabled = bloqueada;
+  document.getElementById('btn-recargar-todo').disabled = bloqueada;
+  document.getElementById('tab-pendientes').disabled = bloqueada;
+  document.getElementById('tab-vacios').disabled = bloqueada;
+  document.getElementById('btn-volver-buscador-carga').disabled = bloqueada;
+  document.getElementById('btn-limpiar-registro').disabled = bloqueada;
+  document.getElementById('input-etiqueta-nueva').disabled = bloqueada;
+  document.getElementById('btn-agregar-etiqueta').disabled = bloqueada;
+  document.getElementById('explorador-breadcrumb').classList.toggle('bloqueado', bloqueada);
+  document.getElementById('explorador-lista').classList.toggle('bloqueado', bloqueada);
+  document.getElementById('etiquetas-checkboxes').classList.toggle('bloqueado', bloqueada);
+}
+
 async function ejecutarCarga(modo) {
   if (breadcrumbCarga.length === 0) return;
   const folderId = breadcrumbCarga[breadcrumbCarga.length - 1].id;
@@ -1983,10 +2090,7 @@ async function ejecutarCarga(modo) {
   const etiquetas = etiquetasElegidasCarga();
   const esperados = cantidadPdfActualCarga;
 
-  const btnNuevo = document.getElementById('btn-cargar-nuevo');
-  const btnTodo = document.getElementById('btn-recargar-todo');
-  btnNuevo.disabled = true;
-  btnTodo.disabled = true;
+  bloquearCargaUI(true);
 
   const idEntrada = agregarEntradaRegistro(camino, esperados, modo);
 
@@ -2003,8 +2107,7 @@ async function ejecutarCarga(modo) {
   } catch (err) {
     actualizarEntradaRegistro(idEntrada, { error: 'Sin conexión, o la carga se cortó a mitad de camino. Si fue por tiempo, lo ya procesado quedó guardado — volvé a apretar el mismo botón sobre esta carpeta.' });
   } finally {
-    btnNuevo.disabled = false;
-    btnTodo.disabled = false;
+    bloquearCargaUI(false);
     // v2.1.0 — refresca el contador y el chip de sincronización de la
     // carpeta actual, por si seguís mirando la misma tras cargar.
     if (breadcrumbCarga.length && breadcrumbCarga[breadcrumbCarga.length - 1].id === folderId) {
@@ -2030,11 +2133,14 @@ function actualizarEntradaRegistro(id, resultado) {
     entrada.detalle = resultado.error;
   } else {
     entrada.resultado = resultado;
-    const procesados = (resultado.documentosIndexados || 0) + (resultado.documentosSalteados || 0) + (resultado.documentosFallidos || 0);
+    // v2.2.0 — documentosVacios suma al total procesado, junto a
+    // indexados/salteados/fallidos.
+    const procesados = (resultado.documentosIndexados || 0) + (resultado.documentosSalteados || 0) + (resultado.documentosVacios || 0) + (resultado.documentosFallidos || 0);
     entrada.estado = procesados < entrada.esperados ? 'incompleto' : 'ok';
   }
   renderRegistroCarga();
   cargarPendientes(); // por si esta corrida sumó (o resolvió) documentos con error
+  cargarVacios();      // ídem, para documentos vacíos
 }
 
 function renderRegistroCarga() {
@@ -2057,6 +2163,7 @@ function renderRegistroCarga() {
     } else {
       const r = e.resultado;
       resumen = r.documentosIndexados + ' indexados, ' + r.documentosSalteados + ' salteados' +
+        (r.documentosVacios ? ', ' + r.documentosVacios + ' vacíos' : '') +
         (r.documentosFallidos ? ', ' + r.documentosFallidos + ' con error' : '');
       if (e.estado === 'incompleto') {
         resumen += ' — se esperaban ' + e.esperados + '. Puede haberse cortado por tiempo: volvé a cargar esta misma carpeta.';
@@ -2106,7 +2213,11 @@ async function cargarPendientes() {
         '<div class="pendiente-error">' + escapeHtml(p.error || '') + '</div>' +
         '<div class="pendiente-meta">Intentos: ' + escapeHtml(String(p.cantidadIntentos || '')) + '</div>' +
         '<button class="btn-reintentar">Reintentar</button>';
-      card.querySelector('.btn-reintentar').onclick = function () { reintentarPendiente(p.link, card); };
+      // v2.2.0 — se reaplican las etiquetas manuales de la carga
+      // original (p.etiquetasManuales, columna nueva del backend);
+      // antes se mandaba [] y se perdían siempre.
+      const etiquetasManuales = (p.etiquetasManuales || '').split(',').map(function (e) { return e.trim(); }).filter(Boolean);
+      card.querySelector('.btn-reintentar').onclick = function () { reintentarPendiente(p.link, card, etiquetasManuales); };
       cont.appendChild(card);
     });
   } catch (err) {
@@ -2114,14 +2225,72 @@ async function cargarPendientes() {
   }
 }
 
-async function reintentarPendiente(link, card) {
+async function reintentarPendiente(link, card, etiquetasManuales) {
   const btn = card.querySelector('.btn-reintentar');
   btn.disabled = true;
   btn.textContent = 'Reintentando…';
   try {
-    const r = await llamarBackend('reintentarPendiente', { obraId: obraActual.obraId, email: emailActual, link: link, etiquetas: [] });
+    const r = await llamarBackend('reintentarPendiente', { obraId: obraActual.obraId, email: emailActual, link: link, etiquetas: etiquetasManuales || [] });
     if (r.ok) {
       cargarPendientes();
+      if (r.resultado && r.resultado.vacio) cargarVacios(); // pudo haber pasado a la otra lista
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Reintentar';
+      alert('El reintento volvió a fallar: ' + (r.error || ''));
+    }
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = 'Reintentar';
+    alert('Sin conexión.');
+  }
+}
+
+// ── Panel 3 (v2.2.0): Documentos vacíos (persistente, documentos_vacios) ──
+async function cargarVacios() {
+  const badge = document.getElementById('vacios-count');
+  const cont = document.getElementById('vacios-lista');
+  try {
+    const r = await llamarBackend('listarDocumentosVacios', { obraId: obraActual.obraId, email: emailActual });
+    if (!r.ok) {
+      badge.textContent = '';
+      if (cont) cont.innerHTML = '<div class="resultados-vacio">Error al cargar.</div>';
+      return;
+    }
+    badge.textContent = r.vacios.length || '';
+    if (!cont) return;
+
+    if (r.vacios.length === 0) {
+      cont.innerHTML = '<div class="resultados-vacio">Sin documentos vacíos. 🎉</div>';
+      return;
+    }
+    cont.innerHTML = '';
+    r.vacios.forEach(function (v) {
+      const card = document.createElement('div');
+      card.className = 'pendiente-card vacio-card';
+      card.innerHTML =
+        '<div class="pendiente-doc">' + escapeHtml(v.documento) + '</div>' +
+        '<div class="pendiente-carpeta">' + escapeHtml(v.carpeta || '') + '</div>' +
+        '<div class="vacio-motivo">Sin texto extraíble (0 páginas).</div>' +
+        '<div class="pendiente-meta">Intentos: ' + escapeHtml(String(v.cantidadIntentos || '')) + '</div>' +
+        '<button class="btn-reintentar">Reintentar</button>';
+      const etiquetasManuales = (v.etiquetasManuales || '').split(',').map(function (e) { return e.trim(); }).filter(Boolean);
+      card.querySelector('.btn-reintentar').onclick = function () { reintentarVacio(v.link, card, etiquetasManuales); };
+      cont.appendChild(card);
+    });
+  } catch (err) {
+    if (cont) cont.innerHTML = '<div class="resultados-vacio">Sin conexión.</div>';
+  }
+}
+
+async function reintentarVacio(link, card, etiquetasManuales) {
+  const btn = card.querySelector('.btn-reintentar');
+  btn.disabled = true;
+  btn.textContent = 'Reintentando…';
+  try {
+    const r = await llamarBackend('reintentarVacio', { obraId: obraActual.obraId, email: emailActual, link: link, etiquetas: etiquetasManuales || [] });
+    if (r.ok) {
+      cargarVacios();
     } else {
       btn.disabled = false;
       btn.textContent = 'Reintentar';
