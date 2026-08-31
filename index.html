@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v2.0.0</title>
+<title>BDC — Buscador Documental de Contrato v2.1.0</title>
 <!-- PWA (patrón estándar del stack — falta agregar manifest.json + íconos reales al repo) -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0f172a">
@@ -14,6 +14,47 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔎</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
+  index_bdc_v2_1_0.html — v2.1.0 (31-ago-2026)
+
+  QUÉ CAMBIÓ EN v2.1.0 (respecto a v2.0.0) — rediseño quirúrgico de
+  la pantalla de carga (bloque "A"), a partir del feedback real de
+  probar v2.0.0 en producción (ver Handoff_BDC_v2_1_0.md). Todas las
+  decisiones de diseño se conversaron antes de codear (spinner solo
+  visual, verificación automática, diálogo propio, layout en 2
+  columnas). La búsqueda AND por palabras sueltas (bloque "B") queda
+  para otra entrega, sin tocar acá.
+   - Layout de la tab "Cargar documentos" pasa de todo apilado en un
+     único ancho fijo a 2 columnas lado a lado: izquierda el
+     explorador (breadcrumb, contador, sincronización, subcarpetas,
+     etiquetas, botones), derecha el registro de carga — cada una
+     con su propio scroll, aprovechando el ancho de pantalla.
+   - Contador "N PDF sueltos" ahora es un badge grande con color:
+     gris/neutro si es 0, ámbar si hay documentos — antes era una
+     línea de texto más entre otras, poco jerarquizada.
+   - Nuevo chip de sincronización (automático, al entrar a la
+     carpeta): verde "Sincronizado" si Drive y el índice coinciden;
+     ámbar con el detalle (cuántos nuevos / cuántos ya no están) si
+     no. No aparece si la carpeta nunca se cargó — evita confundir
+     "todavía no cargué esto" con una desincronía real.
+   - Etiquetas manuales: se agregó un campo + botón "Agregar" junto
+     a los checkboxes existentes, para crear una etiqueta nueva en el
+     catálogo de la obra sin entrar al Sheet (solo Create — no se
+     puede editar ni borrar desde acá). Rechaza duplicados por
+     acentos/mayúsculas/plural simple (backend, ver
+     agregarEtiquetaDisponible_).
+   - Nuevo diálogo de confirmación propio (mismo estilo visual que
+     el diálogo "Sesión actual"/pwa_pin) antes de ejecutar "Cargar"
+     o "Recargar todo esta carpeta" — antes no pedía nada.
+   - El "Registro de carga" muestra un spinner girando (CSS puro,
+     sin contador numérico — GAS no puede avisar avance real dentro
+     de una sola llamada síncrona, se conversó y se descartó
+     simularlo con un número falso) mientras una corrida está en
+     curso.
+   - volverABuscador() ahora refresca el resumen de la obra
+     (Facetas + contador total) al volver del panel de carga, y si
+     había una búsqueda o faceta activa, la vuelve a ejecutar — antes
+     la vista quedaba con los datos de antes de cargar.
+
   index_bdc_v2_0_0.html — v2.0.0 (31-ago-2026)
 
   QUÉ CAMBIÓ EN v2.0.0 (respecto a v1.4) — pantalla de carga de
@@ -635,7 +676,39 @@ input { font-family: inherit; }
 .btn-cerrar-sesion:hover { background: #fee2e2; }
 
 /* ─────────────────────────────────────────────────
-   PANTALLA DE CARGA (v2.0.0, solo admin)
+   DIALOG "Confirmar carga" (v2.1.0) — mismo estilo que
+   session-dialog / pwa_pin, antes de Cargar/Recargar
+───────────────────────────────────────────────── */
+#confirm-carga-overlay {
+  display        : none;
+  position       : fixed;
+  inset          : 0;
+  background     : rgba(15,23,42,.4);
+  z-index        : 250;
+  align-items    : center;
+  justify-content: center;
+}
+#confirm-carga-overlay.visible { display: flex; }
+.confirm-carga-dialog {
+  background   : var(--surface);
+  border-radius: var(--radius);
+  box-shadow   : var(--shadow-md);
+  padding      : 24px;
+  max-width    : 360px;
+  width        : 100%;
+}
+.confirm-carga-title { font-size: .9rem; font-weight: 700; margin-bottom: 10px; }
+.confirm-carga-desc { font-size: .8rem; color: var(--text); line-height: 1.6; margin-bottom: 18px; }
+.confirm-carga-desc b { color: var(--accent2); }
+.confirm-carga-botones { display: flex; gap: 10px; }
+.confirm-carga-botones button { flex: 1; padding: 9px; border-radius: var(--radius-sm); font-size: .8rem; font-weight: 600; border: 1px solid var(--border); }
+.btn-confirm-cancelar { background: var(--surface); color: var(--text); }
+.btn-confirm-cancelar:hover { background: var(--bg); }
+.btn-confirm-aceptar { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-confirm-aceptar:hover { background: #b45309; }
+
+/* ─────────────────────────────────────────────────
+   PANTALLA DE CARGA (v2.1.0, solo admin) — 2 columnas
 ───────────────────────────────────────────────── */
 #pantalla-carga { display: none; flex-direction: column; height: 100vh; }
 #carga-header { height: var(--header-h); background: var(--accent2); display: flex; align-items: center; padding: 0 18px; gap: 12px; flex-shrink: 0; border-bottom: 1px solid rgba(255,255,255,.06); }
@@ -671,6 +744,29 @@ input { font-family: inherit; }
 .carga-tab-contenido { display: none; flex: 1; overflow-y: auto; padding: 20px; }
 .carga-tab-contenido.activa { display: block; }
 
+/* v2.1.0 — la tab "Cargar documentos" es un caso especial: 2
+   columnas tipo panel (mismo lenguaje visual que #panel-resultados/
+   #panel-facetas del buscador), cada una con su propio scroll
+   interno. Más específico que .carga-tab-contenido.activa (id +
+   clase vs. 2 clases), así que pisa el display:block genérico. La
+   tab "Documentos con error" no se toca, sigue en una sola columna. */
+#tab-contenido-cargar.activa {
+  display        : flex;
+  align-items    : stretch;
+  gap            : 14px;
+  padding        : 14px;
+  overflow       : hidden;
+}
+#explorador-wrap, #registro-carga-wrap {
+  border-radius: var(--radius);
+  box-shadow   : 0 1px 4px rgba(0,0,0,.07), 0 0 0 .5px rgba(0,0,0,.06);
+  background   : var(--surface);
+  overflow-y   : auto;
+  padding      : 18px 20px 24px;
+}
+#explorador-wrap { flex: 1; min-width: 340px; }
+#registro-carga-wrap { width: 340px; flex-shrink: 0; }
+
 .carga-seccion-titulo {
   display        : flex;
   align-items    : center;
@@ -682,15 +778,31 @@ input { font-family: inherit; }
   color          : var(--muted);
   margin         : 18px 0 8px;
 }
+.carga-seccion-titulo:first-child { margin-top: 0; }
 
-#explorador-wrap { max-width: 640px; }
-#explorador-breadcrumb { font-size: .78rem; color: var(--muted); margin-bottom: 6px; display: flex; flex-wrap: wrap; align-items: center; }
+#explorador-breadcrumb { font-size: .78rem; color: var(--muted); margin-bottom: 10px; display: flex; flex-wrap: wrap; align-items: center; }
 .breadcrumb-item { cursor: pointer; }
 .breadcrumb-item:hover { color: var(--accent); text-decoration: underline; }
 .breadcrumb-item:last-child { color: var(--text); font-weight: 600; cursor: default; }
 .breadcrumb-item:last-child:hover { text-decoration: none; }
 .breadcrumb-sep { margin: 0 6px; color: var(--border); }
-#explorador-info { font-size: .82rem; color: var(--text); margin-bottom: 10px; }
+
+/* v2.1.0 — badge grande del contador de PDF sueltos, antes era una
+   línea de texto suelta sin jerarquía. Gris/neutro en 0, ámbar con
+   más de 0 — para que la diferencia salte a la vista de un vistazo. */
+#explorador-contador { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); }
+#explorador-contador.con-pdf { background: var(--tag-bg); border-color: #fde68a; }
+.contador-numero { font-family: 'Bebas Neue', sans-serif; font-size: 1.9rem; line-height: 1; color: var(--muted); }
+#explorador-contador.con-pdf .contador-numero { color: var(--accent); }
+.contador-label { font-size: .78rem; color: var(--text); }
+
+/* v2.1.0 — chip de sincronización, solo aparece si la carpeta ya
+   tenía algo cargado antes (hayDatos:true en la respuesta). */
+#explorador-sync { display: none; align-items: flex-start; gap: 8px; margin-bottom: 14px; padding: 10px 14px; border-radius: var(--radius-sm); font-size: .78rem; line-height: 1.5; }
+#explorador-sync.visible { display: flex; }
+#explorador-sync.sync-ok { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+#explorador-sync.sync-alerta { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+.sync-icono { flex-shrink: 0; }
 
 #explorador-lista { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
 .explorador-item {
@@ -707,7 +819,7 @@ input { font-family: inherit; }
 .explorador-item:hover { background: var(--bg); }
 .explorador-item-flecha { color: var(--muted); }
 
-.etiquetas-checkboxes-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.etiquetas-checkboxes-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .etiqueta-checkbox {
   display      : flex;
   align-items  : center;
@@ -720,6 +832,33 @@ input { font-family: inherit; }
   background   : var(--surface);
 }
 .etiqueta-checkbox:has(input:checked) { border-color: var(--accent); background: var(--tag-bg); }
+
+/* v2.1.0 — alta de etiquetas nuevas (Create, sin editar ni borrar) */
+#etiqueta-nueva-fila { display: flex; gap: 8px; }
+#input-etiqueta-nueva {
+  flex         : 1;
+  padding      : 7px 12px;
+  border       : 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size    : .8rem;
+  font-family  : inherit;
+}
+#input-etiqueta-nueva:focus { outline: none; border-color: var(--accent); }
+.btn-agregar-etiqueta {
+  padding      : 7px 14px;
+  border       : 1px solid var(--accent2);
+  border-radius: var(--radius-sm);
+  background   : var(--surface);
+  color        : var(--accent2);
+  font-size    : .78rem;
+  font-weight  : 600;
+  transition   : all .15s;
+}
+.btn-agregar-etiqueta:hover { background: var(--accent2); color: #fff; }
+.btn-agregar-etiqueta:disabled { opacity: .5; cursor: not-allowed; }
+#etiqueta-nueva-msg { font-size: .72rem; margin-top: 6px; min-height: 1em; }
+#etiqueta-nueva-msg.error { color: var(--danger); }
+#etiqueta-nueva-msg.ok { color: var(--success); }
 
 #explorador-acciones { display: flex; gap: 10px; margin-top: 18px; }
 .btn-carga {
@@ -737,16 +876,35 @@ input { font-family: inherit; }
 .btn-carga-secundario { background: var(--accent2); }
 .btn-carga-secundario:hover { background: #1e293b; }
 
-#registro-carga-wrap { max-width: 640px; }
 #registro-carga-lista { display: flex; flex-direction: column; gap: 8px; }
 .registro-card { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; background: var(--surface); }
-.registro-card-titulo { font-size: .8rem; font-weight: 600; }
+.registro-card-titulo { font-size: .8rem; font-weight: 600; display: flex; align-items: center; gap: 7px; }
 .registro-card-detalle { font-size: .76rem; color: var(--muted); margin-top: 3px; }
 .registro-ok .registro-card-titulo { color: var(--success); }
 .registro-incompleto { border-color: #fde68a; background: #fffbeb; }
 .registro-incompleto .registro-card-detalle { color: #92400e; }
 .registro-error { border-color: #fecaca; background: #fef2f2; }
 .registro-error .registro-card-detalle { color: #991b1b; }
+
+/* v2.1.0 — spinner girando (solo visual, sin contador numérico real:
+   GAS no puede avisar avance dentro de una sola llamada síncrona;
+   se conversó y se descartó simularlo con un número falso). */
+.spinner-carga {
+  display      : inline-block;
+  width        : 13px;
+  height       : 13px;
+  border       : 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation    : spinner-girar .7s linear infinite;
+  flex-shrink  : 0;
+}
+@keyframes spinner-girar { to { transform: rotate(360deg); } }
+
+@media (max-width: 720px) {
+  #tab-contenido-cargar.activa { flex-direction: column; overflow-y: auto; overflow-x: hidden; }
+  #registro-carga-wrap { width: 100%; }
+}
 
 #pendientes-lista { display: flex; flex-direction: column; gap: 10px; max-width: 720px; }
 .pendiente-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; background: var(--surface); }
@@ -787,7 +945,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v2.0.0</div>
+    <div class="caja-version">v2.1.0</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -844,7 +1002,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v2.0.0</span>
+    <span class="hdr-version">v2.1.0</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <button class="hdr-btn-cambiar-obra" id="btn-cargar-datos" style="display:none" onclick="mostrarPantallaCarga()">Cargar documentos</button>
@@ -909,7 +1067,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v2.0.0</span>
+    <span class="hdr-version">v2.1.0</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -924,16 +1082,26 @@ input { font-family: inherit; }
   <!-- TAB: Cargar documentos -->
   <div id="tab-contenido-cargar" class="carga-tab-contenido activa">
     <div id="explorador-wrap">
+      <div class="carga-seccion-titulo">Carpeta</div>
       <div id="explorador-breadcrumb"></div>
-      <div id="explorador-info"></div>
+      <div id="explorador-contador">
+        <span class="contador-numero" id="explorador-contador-num">–</span>
+        <span class="contador-label" id="explorador-contador-label">Cargando…</span>
+      </div>
+      <div id="explorador-sync"></div>
       <div id="explorador-lista"></div>
       <div id="explorador-etiquetas">
         <div class="carga-seccion-titulo">Etiquetas manuales para este lote (opcional)</div>
         <div id="etiquetas-checkboxes" class="etiquetas-checkboxes-grid"></div>
+        <div id="etiqueta-nueva-fila">
+          <input type="text" id="input-etiqueta-nueva" placeholder="Nueva etiqueta…" maxlength="40" onkeydown="if(event.key==='Enter'){event.preventDefault();agregarEtiquetaNueva();}">
+          <button class="btn-agregar-etiqueta" id="btn-agregar-etiqueta" onclick="agregarEtiquetaNueva()">Agregar</button>
+        </div>
+        <div id="etiqueta-nueva-msg"></div>
       </div>
       <div id="explorador-acciones">
-        <button id="btn-cargar-nuevo" class="btn-carga" onclick="ejecutarCarga('faltantes')">Cargar (solo lo nuevo)</button>
-        <button id="btn-recargar-todo" class="btn-carga btn-carga-secundario" onclick="ejecutarCarga('todo')">Recargar todo esta carpeta</button>
+        <button id="btn-cargar-nuevo" class="btn-carga" onclick="pedirConfirmacionCarga('faltantes')">Cargar (solo lo nuevo)</button>
+        <button id="btn-recargar-todo" class="btn-carga btn-carga-secundario" onclick="pedirConfirmacionCarga('todo')">Recargar todo esta carpeta</button>
       </div>
     </div>
     <div id="registro-carga-wrap">
@@ -963,6 +1131,18 @@ input { font-family: inherit; }
     <div class="session-dialog-row"><span class="session-dialog-label">Nombre</span><span id="sd-nombre"></span></div>
     <div class="session-dialog-row"><span class="session-dialog-label">Vence</span><span id="sd-vence"></span></div>
     <button class="btn-cerrar-sesion" onclick="cerrarSesion()">Cerrar sesión</button>
+  </div>
+</div>
+
+<!-- ═══════════════ DIALOG "Confirmar carga" (v2.1.0) ═══════════════ -->
+<div id="confirm-carga-overlay" onclick="if(event.target===this) cerrarConfirmCarga()">
+  <div class="confirm-carga-dialog">
+    <div class="confirm-carga-title" id="confirm-carga-title">Confirmar carga</div>
+    <div class="confirm-carga-desc" id="confirm-carga-desc"></div>
+    <div class="confirm-carga-botones">
+      <button class="btn-confirm-cancelar" onclick="cerrarConfirmCarga()">Cancelar</button>
+      <button class="btn-confirm-aceptar" id="btn-confirm-aceptar">Confirmar</button>
+    </div>
   </div>
 </div>
 
@@ -1594,8 +1774,20 @@ function mostrarPantallaCarga() {
   cargarPendientes(); // para el badge del tab, aunque arranque en "Cargar documentos"
 }
 
+// v2.1.0 — antes la vista del buscador quedaba con los datos de
+// antes de cargar documentos (Facetas, contador total, resultados
+// visibles). Ahora se refresca el resumen de la obra al volver, y si
+// había una búsqueda o faceta activa, se vuelve a ejecutar para que
+// traiga lo recién indexado.
 function volverABuscador() {
   mostrarPantalla('app-visible');
+  cargarResumenObra().then(function () {
+    const termino = document.getElementById('input-buscar').value.trim();
+    const hayFacetas = facetasSeleccionadas.etiquetas.size > 0 || facetasSeleccionadas.carpetas.size > 0;
+    if (termino || hayFacetas) {
+      ejecutarBusqueda();
+    }
+  });
 }
 
 function cambiarTabCarga(tab) {
@@ -1610,8 +1802,17 @@ function cambiarTabCarga(tab) {
 async function cargarNodoCarpeta(folderId) {
   const lista = document.getElementById('explorador-lista');
   lista.innerHTML = '<div class="resultados-cargando">Cargando...</div>';
+  document.getElementById('explorador-sync').className = ''; // oculto hasta tener respuesta
+  document.getElementById('explorador-contador').classList.remove('con-pdf');
+  document.getElementById('explorador-contador-num').textContent = '–';
+  document.getElementById('explorador-contador-label').textContent = 'Cargando…';
+  // v2.1.0 — el camino ya lo tiene el breadcrumb armado (entrarCarpeta
+  // e irABreadcrumb lo empujan ANTES de llamar acá); en la primera
+  // carga de la obra (breadcrumbCarga vacío) se manda sin camino y el
+  // backend usa el nombre de la carpeta raíz.
+  const camino = breadcrumbCarga.length ? breadcrumbCarga.map(function (n) { return n.nombre; }).join(' > ') : undefined;
   try {
-    const r = await llamarBackend('explorarCarpeta', { obraId: obraActual.obraId, email: emailActual, folderId: folderId || undefined });
+    const r = await llamarBackend('explorarCarpeta', { obraId: obraActual.obraId, email: emailActual, folderId: folderId || undefined, camino: camino });
     if (!r.ok) {
       lista.innerHTML = '<div class="resultados-vacio">' + escapeHtml(r.error || 'Error al explorar la carpeta.') + '</div>';
       return;
@@ -1634,8 +1835,14 @@ function renderExplorador(carpeta) {
       (esUltimo ? '' : '<span class="breadcrumb-sep">›</span>');
   }).join('');
 
-  document.getElementById('explorador-info').textContent =
-    carpeta.cantidadPdf + (carpeta.cantidadPdf === 1 ? ' PDF suelto en esta carpeta.' : ' PDF sueltos en esta carpeta.');
+  // v2.1.0 — badge grande del contador, con color según haya o no PDF
+  const cont = document.getElementById('explorador-contador');
+  cont.classList.toggle('con-pdf', carpeta.cantidadPdf > 0);
+  document.getElementById('explorador-contador-num').textContent = carpeta.cantidadPdf;
+  document.getElementById('explorador-contador-label').textContent =
+    carpeta.cantidadPdf === 1 ? 'PDF suelto en esta carpeta' : 'PDF sueltos en esta carpeta';
+
+  renderSincronizacion(carpeta.sincronizacion);
 
   const lista = document.getElementById('explorador-lista');
   if (!carpeta.subcarpetas || carpeta.subcarpetas.length === 0) {
@@ -1652,6 +1859,29 @@ function renderExplorador(carpeta) {
   });
 }
 
+// v2.1.0 — chip de sincronización: solo se muestra si la carpeta ya
+// tenía algo cargado antes (sync.hayDatos). Si nunca se cargó, no
+// hay nada que comparar todavía — el contador de arriba ya cubre ese
+// caso ("todavía no cargué esto").
+function renderSincronizacion(sync) {
+  const el = document.getElementById('explorador-sync');
+  if (!sync || !sync.hayDatos) {
+    el.className = '';
+    el.innerHTML = '';
+    return;
+  }
+  if (sync.sincronizado) {
+    el.className = 'visible sync-ok';
+    el.innerHTML = '<span class="sync-icono">✓</span><span>Sincronizado con Drive.</span>';
+    return;
+  }
+  const partes = [];
+  if (sync.nuevos.length) partes.push(sync.nuevos.length + (sync.nuevos.length === 1 ? ' documento nuevo en Drive' : ' documentos nuevos en Drive'));
+  if (sync.faltantes.length) partes.push(sync.faltantes.length + (sync.faltantes.length === 1 ? ' documento ya no está en Drive (¿renombrado o borrado?)' : ' documentos ya no están en Drive (¿renombrados o borrados?)'));
+  el.className = 'visible sync-alerta';
+  el.innerHTML = '<span class="sync-icono">⚠</span><span>' + escapeHtml(partes.join(' — ')) + '.</span>';
+}
+
 function entrarCarpeta(id, nombre) {
   breadcrumbCarga.push({ id: id, nombre: nombre });
   cargarNodoCarpeta(id);
@@ -1666,6 +1896,7 @@ function irABreadcrumb(index) {
 // ── Etiquetas manuales del lote ─────────────────────────────
 async function cargarEtiquetasDisponiblesCarga() {
   const cont = document.getElementById('etiquetas-checkboxes');
+  const yaElegidas = etiquetasElegidasCarga(); // v2.1.0 — se preservan al refrescar tras un alta
   cont.innerHTML = 'Cargando...';
   try {
     const r = await llamarBackend('listarEtiquetasDisponibles', { obraId: obraActual.obraId, email: emailActual });
@@ -1677,7 +1908,8 @@ async function cargarEtiquetasDisponiblesCarga() {
     r.etiquetas.forEach(function (et) {
       const label = document.createElement('label');
       label.className = 'etiqueta-checkbox';
-      label.innerHTML = '<input type="checkbox" value="' + escapeHtml(et) + '"> ' + escapeHtml(et);
+      const marcada = yaElegidas.indexOf(et) !== -1;
+      label.innerHTML = '<input type="checkbox" value="' + escapeHtml(et) + '"' + (marcada ? ' checked' : '') + '> ' + escapeHtml(et);
       cont.appendChild(label);
     });
   } catch (err) {
@@ -1687,6 +1919,60 @@ async function cargarEtiquetasDisponiblesCarga() {
 
 function etiquetasElegidasCarga() {
   return Array.from(document.querySelectorAll('#etiquetas-checkboxes input:checked')).map(function (i) { return i.value; });
+}
+
+// v2.1.0 — alta de etiquetas nuevas al catálogo de la obra (Create,
+// sin editar ni borrar). El backend rechaza duplicados por acentos/
+// mayúsculas/plural simple; ese mensaje se muestra tal cual.
+async function agregarEtiquetaNueva() {
+  const input = document.getElementById('input-etiqueta-nueva');
+  const btn = document.getElementById('btn-agregar-etiqueta');
+  const msg = document.getElementById('etiqueta-nueva-msg');
+  const texto = input.value.trim();
+  msg.className = '';
+  msg.textContent = '';
+  if (!texto) return;
+
+  btn.disabled = true;
+  try {
+    const r = await llamarBackend('agregarEtiquetaDisponible', { obraId: obraActual.obraId, email: emailActual, etiqueta: texto });
+    if (!r.ok) {
+      msg.className = 'error';
+      msg.textContent = r.error || 'No se pudo agregar.';
+    } else {
+      input.value = '';
+      msg.className = 'ok';
+      msg.textContent = '"' + texto + '" agregada.';
+      cargarEtiquetasDisponiblesCarga(); // recarga el listado de checkboxes con la nueva
+    }
+  } catch (err) {
+    msg.className = 'error';
+    msg.textContent = 'Sin conexión.';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Confirmación antes de Cargar/Recargar (v2.1.0) ──────────
+function pedirConfirmacionCarga(modo) {
+  if (breadcrumbCarga.length === 0) return;
+  const camino = breadcrumbCarga.map(function (n) { return n.nombre; }).join(' > ');
+  const esRecarga = modo === 'todo';
+
+  document.getElementById('confirm-carga-title').textContent = esRecarga ? 'Recargar todo esta carpeta' : 'Cargar documentos nuevos';
+  document.getElementById('confirm-carga-desc').innerHTML = (esRecarga
+    ? 'Se va a <b>reprocesar</b> todo lo que ya está indexado de esta carpeta, además de lo nuevo.'
+    : 'Se va a indexar lo que todavía no esté cargado de esta carpeta.') +
+    '<br><br>Carpeta: <b>' + escapeHtml(camino) + '</b><br>' +
+    cantidadPdfActualCarga + (cantidadPdfActualCarga === 1 ? ' PDF suelto esperado.' : ' PDF sueltos esperados.');
+
+  const btnAceptar = document.getElementById('btn-confirm-aceptar');
+  btnAceptar.onclick = function () { cerrarConfirmCarga(); ejecutarCarga(modo); };
+  document.getElementById('confirm-carga-overlay').classList.add('visible');
+}
+
+function cerrarConfirmCarga() {
+  document.getElementById('confirm-carga-overlay').classList.remove('visible');
 }
 
 // ── Ejecutar carga / relectura ──────────────────────────────
@@ -1719,6 +2005,11 @@ async function ejecutarCarga(modo) {
   } finally {
     btnNuevo.disabled = false;
     btnTodo.disabled = false;
+    // v2.1.0 — refresca el contador y el chip de sincronización de la
+    // carpeta actual, por si seguís mirando la misma tras cargar.
+    if (breadcrumbCarga.length && breadcrumbCarga[breadcrumbCarga.length - 1].id === folderId) {
+      cargarNodoCarpeta(folderId);
+    }
   }
 }
 
@@ -1772,7 +2063,9 @@ function renderRegistroCarga() {
       }
     }
 
-    const icono = { cargando: '⏳', ok: '✓', incompleto: '⚠', error: '✕' }[e.estado];
+    // v2.1.0 — mientras está en curso, spinner CSS girando en vez de
+    // un emoji estático; el resto de estados sigue con ícono fijo.
+    const icono = e.estado === 'cargando' ? '<span class="spinner-carga"></span>' : { ok: '✓', incompleto: '⚠', error: '✕' }[e.estado];
     card.innerHTML =
       '<div class="registro-card-titulo">' + icono + ' ' + escapeHtml(modoTxt) + ' — ' + escapeHtml(e.camino) + '</div>' +
       '<div class="registro-card-detalle">' + resumen + '</div>';
