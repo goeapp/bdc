@@ -14,6 +14,23 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔎</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
+  index_bdc_v1_3.html — v1.3.0 (31-ago-2026)
+
+  QUÉ CAMBIÓ EN v1.3 (respecto a v1.2) — 3 fixes de UX de búsqueda,
+  conversados antes de codear (ver Handoff_BDC_v1_15.md):
+   - Checkbox "Palabra completa" (desactivado por defecto), junto al
+     buscador. Viaja como `palabraCompleta` a la action "buscar"
+     (bdc_gas_v1_15.gs) — evita falsos positivos tipo "multa" adentro
+     de "simultaneidad".
+   - Botón "×" dentro del input de búsqueda (no existía): visible
+     solo cuando hay texto escrito, limpia el input y vuelve a
+     ejecutar la búsqueda por el mismo camino que Enter/botón
+     "Buscar" (respeta facetas activas si las hay).
+   - Fix: el contador de resultados (buscar-contador) se quedaba
+     mostrando el número de la búsqueda anterior mientras la nueva
+     estaba en curso ("Buscando..."). Ahora se limpia en el mismo
+     momento que arranca la nueva búsqueda.
+
   index_bdc_v1_2.html — v1.2.0 (29-ago-2026)
 
   QUÉ CAMBIÓ EN v1.2 (respecto a v1.1) — feedback de la primera
@@ -335,15 +352,33 @@ input { font-family: inherit; }
 /* ── Buscador ─────────────────────────────────── */
 #buscador-wrap { padding: 12px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 #buscador-row { display: flex; gap: 8px; }
+#input-buscar-wrap { position: relative; flex: 1; }
 #input-buscar {
-  flex         : 1;
-  padding      : 10px 14px;
+  width        : 100%;
+  padding      : 10px 34px 10px 14px;
   border       : 1.5px solid var(--border);
   border-radius: var(--radius-sm);
   font-size    : .88rem;
   transition   : border-color .15s;
 }
 #input-buscar:focus { outline: none; border-color: var(--accent); }
+#btn-limpiar-buscar {
+  display      : none; /* se muestra por JS solo cuando hay texto */
+  position     : absolute;
+  right        : 6px;
+  top          : 50%;
+  transform    : translateY(-50%);
+  width        : 22px;
+  height       : 22px;
+  border       : none;
+  background   : transparent;
+  color        : var(--muted);
+  font-size    : 1rem;
+  line-height  : 1;
+  border-radius: 50%;
+  transition   : background .15s, color .15s;
+}
+#btn-limpiar-buscar:hover { background: var(--border); color: var(--text); }
 #btn-buscar {
   padding      : 10px 18px;
   border       : none;
@@ -356,7 +391,10 @@ input { font-family: inherit; }
   transition   : background .15s;
 }
 #btn-buscar:hover { background: #b45309; }
-#buscar-contador { font-size: .72rem; color: var(--muted); margin-top: 8px; }
+#buscador-opciones { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+#chk-palabra-completa { cursor: pointer; accent-color: var(--accent); }
+#lbl-palabra-completa { font-size: .72rem; color: var(--muted); cursor: pointer; user-select: none; }
+#buscar-contador { font-size: .72rem; color: var(--muted); margin-top: 4px; }
 
 /* ── Lista de resultados ─────────────────────── */
 #lista-resultados { flex: 1; overflow-y: auto; padding: 8px 16px 16px; }
@@ -594,8 +632,15 @@ input { font-family: inherit; }
     <div id="panel-resultados">
       <div id="buscador-wrap">
         <div id="buscador-row">
-          <input type="text" id="input-buscar" placeholder="Buscar en el pliego, circulares, especificaciones...">
+          <div id="input-buscar-wrap">
+            <input type="text" id="input-buscar" placeholder="Buscar en el pliego, circulares, especificaciones...">
+            <button id="btn-limpiar-buscar" onclick="limpiarBusqueda()" title="Borrar" aria-label="Borrar búsqueda">✕</button>
+          </div>
           <button id="btn-buscar" onclick="ejecutarBusqueda()">Buscar</button>
+        </div>
+        <div id="buscador-opciones">
+          <input type="checkbox" id="chk-palabra-completa">
+          <label id="lbl-palabra-completa" for="chk-palabra-completa">Palabra completa</label>
         </div>
         <div id="buscar-contador"></div>
       </div>
@@ -966,6 +1011,7 @@ function mostrarBuscador() {
   document.getElementById('hdr-obra-nombre').textContent = obraActual.nombreObra;
   document.getElementById('hdr-email').textContent = emailActual;
   document.getElementById('input-buscar').value = '';
+  document.getElementById('chk-palabra-completa').checked = false;
   facetasSeleccionadas.etiquetas.clear();
   facetasSeleccionadas.carpetas.clear();
   resultadosActuales = [];
@@ -983,11 +1029,34 @@ function configurarInputBuscar() {
   input.onkeydown = function (e) {
     if (e.key === 'Enter') ejecutarBusqueda();
   };
+  // v1.3: el botón "×" solo se muestra cuando hay texto escrito.
+  input.oninput = function () {
+    actualizarVisibilidadBtnLimpiar();
+  };
+  actualizarVisibilidadBtnLimpiar();
+}
+
+function actualizarVisibilidadBtnLimpiar() {
+  const input = document.getElementById('input-buscar');
+  document.getElementById('btn-limpiar-buscar').style.display = input.value ? 'block' : 'none';
+}
+
+// v1.3: limpia el input y vuelve a buscar por el mismo camino que
+// Enter/botón "Buscar" — si hay una faceta tildada, respeta ese
+// filtro (busca solo por faceta); si no hay nada más activo, cae en
+// mostrarEstadoInicial() como cualquier búsqueda vacía sin facetas.
+function limpiarBusqueda() {
+  const input = document.getElementById('input-buscar');
+  input.value = '';
+  actualizarVisibilidadBtnLimpiar();
+  input.focus();
+  ejecutarBusqueda();
 }
 
 function ejecutarBusqueda() {
   const termino = document.getElementById('input-buscar').value.trim();
-  buscar(termino);
+  const palabraCompleta = document.getElementById('chk-palabra-completa').checked;
+  buscar(termino, palabraCompleta);
 }
 
 function mostrarEstadoInicial() {
@@ -1017,7 +1086,7 @@ async function cargarResumenObra() {
   }
 }
 
-async function buscar(termino) {
+async function buscar(termino, palabraCompleta) {
   const etiquetas = Array.from(facetasSeleccionadas.etiquetas);
   const carpetas = Array.from(facetasSeleccionadas.carpetas);
 
@@ -1028,10 +1097,14 @@ async function buscar(termino) {
   }
 
   document.getElementById('lista-resultados').innerHTML = '<div class="resultados-cargando">Buscando...</div>';
+  // v1.3: fix — el contador de la búsqueda anterior quedaba pegado
+  // acá mientras la nueva estaba en curso; se limpia en el mismo
+  // momento que se muestra "Buscando...".
+  document.getElementById('buscar-contador').textContent = '';
   try {
     const r = await llamarBackend('buscar', {
       obraId: obraActual.obraId, termino: termino, email: emailActual,
-      etiquetas: etiquetas, carpetas: carpetas
+      etiquetas: etiquetas, carpetas: carpetas, palabraCompleta: !!palabraCompleta
     });
     if (!r.ok) {
       document.getElementById('lista-resultados').innerHTML = '<div class="resultados-vacio">Error al buscar.</div>';
