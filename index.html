@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v2.4.1</title>
+<title>BDC — Buscador Documental de Contrato v3.0.0</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,7 +17,36 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
-  index_bdc_v2_4_1.html — v2.4.1 (01-sep-2026)
+  index_bdc_v3_0_0.html — v3.0.0 (01-sep-2026)
+
+  QUÉ CAMBIÓ EN v3.0.0 (respecto a v2.4.1) — Entrega 1 de la sesión de
+  diseño Mapa/Grafo: Vista "Mapa Mental" nueva + 3 ajustes de UX
+  chicos detectados probando v2.4.1 en producción.
+   - Vista Mapa Mental: botón "Mapa" nuevo en el header del buscador
+     (visible para todos, es de consulta — no requiere admin). Árbol
+     de Carpetas de la obra, expandible, con contador de documentos
+     acumulado por nodo, dentro de un lienzo con zoom/pan propio
+     (arrastrar para mover, rueda o botones +/− para zoom, botón
+     Reset). Click en el contador de un nodo aplica esa Carpeta (y
+     todo su subárbol) como filtro al buscador y cierra el mapa —
+     mismo efecto que tildar esas carpetas en Facetas. Raíz = nombre
+     de la obra; nodos ordenados alfabéticamente; carpetas sin
+     documentos propios se muestran igual si tienen subcarpetas con
+     datos (no desaparecen). Motor de canvas (mapaViewport,
+     transform translate+scale) pensado para reusarse en el futuro
+     Grafo (Entrega 3).
+   - UX chico 1: "Cargar (solo lo nuevo)" y "Recargar todo esta
+     carpeta" ahora se deshabilitan cuando la carpeta tiene 0 PDF
+     sueltos esperados, en vez de abrir el diálogo de confirmación
+     igual (no tenía sentido confirmar una carga vacía).
+   - UX chico 2: la fila de subcarpeta en el explorador de carga
+     ahora se distingue visualmente de la barra informativa de "PDF
+     sueltos" — ícono de carpeta en color de acento (antes gris,
+     tomaba color solo al hover) + borde de acento a la izquierda +
+     ancho acotado (antes ocupaba todo el panel).
+   - UX chico 3: el panel derecho de la pantalla de carga (Registro
+     de carga) se agrandó (340px → 460px) para balancear mejor con
+     el panel izquierdo.
 
   QUÉ CAMBIÓ EN v2.4.1 (respecto a v2.4.0) — Ale probó "regla vida" y
   se detectó un malentendido: el modo AND se activaba solo con 2+
@@ -827,6 +856,104 @@ input { font-family: inherit; }
 .btn-confirm-aceptar:hover { background: #b45309; }
 
 /* ─────────────────────────────────────────────────
+   PANTALLA — MAPA MENTAL (v3.0.0, consulta)
+   Árbol de Carpetas dentro de un lienzo con zoom/pan propio
+   (traslado+escala vía transform, sin librería externa). Pensado
+   como motor reusable para el futuro Grafo (Entrega 3).
+───────────────────────────────────────────────── */
+#pantalla-mapa { display: none; flex-direction: column; height: 100vh; }
+#mapa-header { height: var(--header-h); background: var(--accent2); display: flex; align-items: center; padding: 0 18px; gap: 12px; flex-shrink: 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+#mapa-toolbar {
+  display        : flex;
+  align-items    : center;
+  gap            : 10px;
+  padding        : 10px 18px;
+  border-bottom  : 1px solid var(--border);
+  background     : var(--surface);
+  flex-shrink    : 0;
+}
+#mapa-titulo { font-size: .82rem; color: var(--muted); font-weight: 600; }
+.mapa-toolbar-sep { flex: 1; }
+.mapa-btn-zoom {
+  padding      : 6px 12px;
+  border       : 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background   : var(--surface);
+  color        : var(--text);
+  font-size    : .82rem;
+  font-weight  : 600;
+  line-height  : 1;
+  transition   : all .15s;
+}
+.mapa-btn-zoom:hover { background: var(--bg); border-color: var(--accent2); }
+
+#mapa-viewport {
+  flex        : 1;
+  position    : relative;
+  overflow    : hidden;
+  background  : var(--bg);
+  cursor      : grab;
+  touch-action: none;
+}
+#mapa-viewport.arrastrando { cursor: grabbing; }
+#mapa-canvas {
+  position       : absolute;
+  top            : 0;
+  left           : 0;
+  transform-origin: 0 0;
+  padding        : 32px 32px 32px 24px;
+}
+#mapa-arbol.resultados-cargando { padding: 24px; color: var(--muted); }
+
+.mapa-nodo { user-select: none; }
+.mapa-nodo-fila {
+  display      : flex;
+  align-items  : center;
+  gap          : 6px;
+  padding      : 5px 10px 5px 4px;
+  border-radius: var(--radius-sm);
+  white-space  : nowrap;
+  cursor       : default;
+}
+.mapa-nodo-fila:hover { background: var(--surface); }
+.mapa-nodo-toggle {
+  width        : 18px;
+  height       : 18px;
+  flex-shrink  : 0;
+  display      : flex;
+  align-items  : center;
+  justify-content: center;
+  color        : var(--muted);
+  cursor       : pointer;
+  font-size    : .7rem;
+  transition   : transform .12s;
+}
+.mapa-nodo-toggle.expandido { transform: rotate(90deg); }
+.mapa-nodo-toggle.sin-hijos { visibility: hidden; }
+.mapa-nodo-icono { color: var(--accent2); flex-shrink: 0; }
+.mapa-nodo-nombre { font-size: .84rem; color: var(--text); }
+.mapa-nodo-nombre.raiz { font-weight: 700; font-size: .92rem; }
+.mapa-nodo-count {
+  margin-left  : 4px;
+  padding      : 1px 9px;
+  border-radius: 999px;
+  font-size    : .72rem;
+  font-weight  : 700;
+  background   : var(--bg);
+  color        : var(--muted);
+  border       : 1px solid var(--border);
+}
+.mapa-nodo-count.con-datos {
+  background: var(--tag-bg);
+  color     : var(--accent);
+  border-color: #fde68a;
+  cursor    : pointer;
+}
+.mapa-nodo-count.con-datos:hover { background: var(--tag-sel); color: var(--tag-sfg); }
+.mapa-nodo-hijos { margin-left: 22px; border-left: 1px dashed var(--border); padding-left: 4px; }
+.mapa-nodo-hijos.oculto { display: none; }
+
+/* ─────────────────────────────────────────────────
    PANTALLA DE CARGA (v2.1.0, solo admin) — 2 columnas
 ───────────────────────────────────────────────── */
 #pantalla-carga { display: none; flex-direction: column; height: 100vh; }
@@ -884,8 +1011,10 @@ input { font-family: inherit; }
   overflow-y   : auto;
   padding      : 18px 20px 24px;
 }
-#explorador-wrap { flex: 1; min-width: 340px; }
-#registro-carga-wrap { width: 340px; flex-shrink: 0; }
+#explorador-wrap { flex: 1; min-width: 320px; }
+/* v3.0.0 — UX chico 3 (Ale, 01-sep): 340px → 460px, quedaba muy
+   angosto/vacío comparado con el panel izquierdo. */
+#registro-carga-wrap { width: 460px; flex-shrink: 0; }
 
 .carga-seccion-titulo {
   display        : flex;
@@ -926,7 +1055,13 @@ input { font-family: inherit; }
 #explorador-sync.sync-alerta { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
 .sync-icono { flex-shrink: 0; }
 
-#explorador-lista { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+/* v3.0.0 — UX chico 2 (Ale, 01-sep): la fila de subcarpeta clickeable
+   se confundía visualmente con la barra informativa de "PDF sueltos"
+   (#explorador-contador, no clickeable). Se distingue con borde de
+   acento a la izquierda, ícono de carpeta en color de acento desde
+   el arranque (antes gris, tomaba color recién al hover), y un ancho
+   acotado (antes ocupaba el 100% del panel, igual que el contador). */
+#explorador-lista { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface); max-width: 460px; }
 .explorador-item {
   display        : flex;
   align-items    : center;
@@ -935,13 +1070,14 @@ input { font-family: inherit; }
   font-size      : .84rem;
   cursor         : pointer;
   border-bottom  : 1px solid var(--border);
-  transition     : background .1s;
+  border-left    : 3px solid var(--accent2);
+  transition     : background .1s, border-color .1s;
 }
 .explorador-item:last-child { border-bottom: none; }
-.explorador-item:hover { background: var(--bg); }
+.explorador-item:hover { background: var(--bg); border-left-color: var(--accent); }
 .explorador-item:hover .explorador-item-icono { color: var(--accent); }
 .explorador-item-nombre { display: flex; align-items: center; gap: 10px; }
-.explorador-item-icono { color: var(--muted); flex-shrink: 0; transition: color .1s; }
+.explorador-item-icono { color: var(--accent2); flex-shrink: 0; transition: color .1s; }
 .explorador-item-flecha { color: var(--muted); }
 
 /* v2.2.0 — pill de 2 estados en vez de checkbox+label, mismo
@@ -1123,7 +1259,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v2.4.1</div>
+    <div class="caja-version">v3.0.0</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -1180,9 +1316,13 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v2.4.1</span>
+    <span class="hdr-version">v3.0.0</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
+    <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
+         los usuarios de la obra (no solo admin, a diferencia de
+         "Cargar documentos"). -->
+    <button class="hdr-btn-cambiar-obra" id="btn-abrir-mapa" onclick="mostrarPantallaMapa()">Mapa</button>
     <button class="hdr-btn-cambiar-obra" id="btn-cargar-datos" style="display:none" onclick="mostrarPantallaCarga()">Cargar documentos</button>
     <span class="hdr-sep"></span>
     <span class="hdr-email" id="hdr-email"></span>
@@ -1250,11 +1390,33 @@ input { font-family: inherit; }
   </div>
 </div>
 
+<!-- ═══════════════ PANTALLA — MAPA MENTAL (v3.0.0, consulta) ═══════════════ -->
+<div id="pantalla-mapa">
+  <header id="mapa-header">
+    <span class="hdr-logo">BDC</span>
+    <span class="hdr-version">v3.0.0</span>
+    <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
+    <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
+  </header>
+  <div id="mapa-toolbar">
+    <span id="mapa-titulo">Mapa Mental — árbol de documentos por Carpeta</span>
+    <span class="mapa-toolbar-sep"></span>
+    <button class="mapa-btn-zoom" onclick="mapaZoom(0.8)" title="Alejar" aria-label="Alejar">−</button>
+    <button class="mapa-btn-zoom" onclick="mapaZoom(1.25)" title="Acercar" aria-label="Acercar">+</button>
+    <button class="mapa-btn-zoom" onclick="mapaResetVista()" title="Restablecer vista">Reset</button>
+  </div>
+  <div id="mapa-viewport">
+    <div id="mapa-canvas">
+      <div id="mapa-arbol" class="resultados-cargando">Cargando árbol...</div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════ PANTALLA — CARGA DE DOCUMENTOS (solo admin, v2.0.0) ═══════════════ -->
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v2.4.1</span>
+    <span class="hdr-version">v3.0.0</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -1925,6 +2087,173 @@ function limpiarFaceta(tipo) {
   ejecutarBusqueda();
 }
 
+// ── VISTA MAPA MENTAL (v3.0.0) ───────────────────────────────
+// Árbol de Carpetas dentro de un lienzo con zoom/pan propio, sin
+// librería externa (transform: translate+scale sobre #mapa-canvas,
+// arrastre con Pointer Events, zoom con rueda o botones). Pensado
+// como motor reusable para el futuro Grafo (Entrega 3).
+let mapaEscala = 1;
+let mapaTx = 0;
+let mapaTy = 0;
+let mapaArrastrando = false;
+let mapaPunteroX = 0;
+let mapaPunteroY = 0;
+
+function mostrarPantallaMapa() {
+  mostrarPantalla('mapa-visible');
+  document.getElementById('mapa-hdr-obra-nombre').textContent = obraActual.nombreObra;
+  mapaResetVista();
+  cargarArbolMapa();
+  configurarInteraccionMapa();
+}
+
+function volverABuscadorDesdeMapa() {
+  mostrarPantalla('app-visible');
+}
+
+async function cargarArbolMapa() {
+  const cont = document.getElementById('mapa-arbol');
+  cont.className = 'resultados-cargando';
+  cont.textContent = 'Cargando árbol...';
+  try {
+    const r = await llamarBackend('obtenerArbolCarpetas', { obraId: obraActual.obraId, email: emailActual });
+    if (!r.ok) {
+      cont.className = 'resultados-vacio';
+      cont.textContent = r.error || 'No se pudo cargar el árbol.';
+      return;
+    }
+    cont.className = '';
+    cont.innerHTML = '';
+    cont.appendChild(renderNodoMapa(r.arbol, true));
+  } catch (err) {
+    cont.className = 'resultados-vacio';
+    cont.textContent = 'Sin conexión. Revisá tu internet e intentá de nuevo.';
+  }
+}
+
+// v3.0.0 — nodo raíz arranca expandido; el resto colapsado (se
+// expande con el toggle ▸, click en el nombre no hace nada — solo
+// el toggle y el contador son interactivos, para no competir con el
+// arrastre del lienzo).
+function renderNodoMapa(nodo, esRaiz) {
+  const div = document.createElement('div');
+  div.className = 'mapa-nodo';
+
+  const fila = document.createElement('div');
+  fila.className = 'mapa-nodo-fila';
+
+  const tieneHijos = !!(nodo.hijos && nodo.hijos.length);
+  const toggle = document.createElement('span');
+  toggle.className = 'mapa-nodo-toggle' + (tieneHijos ? '' : ' sin-hijos') + (esRaiz ? ' expandido' : '');
+  toggle.textContent = '▸';
+  fila.appendChild(toggle);
+
+  const icono = document.createElement('span');
+  icono.className = 'mapa-nodo-icono';
+  icono.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>';
+  fila.appendChild(icono);
+
+  const nombre = document.createElement('span');
+  nombre.className = 'mapa-nodo-nombre' + (esRaiz ? ' raiz' : '');
+  nombre.textContent = nodo.nombre;
+  fila.appendChild(nombre);
+
+  // v3.0.0 (Ale, 01-sep) — click en el contador aplica TODAS las
+  // rutas exactas de Carpeta del subárbol de este nodo como filtro
+  // (OR entre sí, ver buscarEnObra_/carpetasFiltro) y cierra el
+  // mapa — así una carpeta con subcarpetas filtra también lo que
+  // está más abajo, no solo lo que matchea su propio nombre exacto.
+  const count = document.createElement('span');
+  const conDatos = nodo.rutas && nodo.rutas.length > 0;
+  count.className = 'mapa-nodo-count' + (conDatos ? ' con-datos' : '');
+  count.textContent = nodo.cantidad;
+  if (conDatos) {
+    count.title = 'Filtrar el buscador por esta carpeta';
+    count.onclick = function (e) { e.stopPropagation(); filtrarPorNodoMapa(nodo.rutas); };
+  }
+  fila.appendChild(count);
+
+  div.appendChild(fila);
+
+  if (tieneHijos) {
+    const hijosWrap = document.createElement('div');
+    hijosWrap.className = 'mapa-nodo-hijos' + (esRaiz ? '' : ' oculto');
+    nodo.hijos.forEach(function (h) { hijosWrap.appendChild(renderNodoMapa(h, false)); });
+    div.appendChild(hijosWrap);
+
+    toggle.onclick = function () {
+      const expandir = !toggle.classList.contains('expandido');
+      toggle.classList.toggle('expandido', expandir);
+      hijosWrap.classList.toggle('oculto', !expandir);
+    };
+  }
+
+  return div;
+}
+
+function filtrarPorNodoMapa(rutas) {
+  if (!rutas || !rutas.length) return;
+  facetasSeleccionadas.carpetas = new Set(rutas);
+  renderFacetas();
+  volverABuscadorDesdeMapa();
+  ejecutarBusqueda();
+}
+
+function aplicarTransformMapa() {
+  document.getElementById('mapa-canvas').style.transform =
+    'translate(' + mapaTx + 'px,' + mapaTy + 'px) scale(' + mapaEscala + ')';
+}
+
+function mapaZoom(factor) {
+  mapaEscala = Math.min(2.5, Math.max(0.4, mapaEscala * factor));
+  aplicarTransformMapa();
+}
+
+function mapaResetVista() {
+  mapaEscala = 1;
+  mapaTx = 24;
+  mapaTy = 24;
+  aplicarTransformMapa();
+}
+
+// v3.0.0 — arrastre con Pointer Events sobre #mapa-viewport; no
+// arrastra si el click empezó sobre el toggle o el contador
+// (elementos interactivos del árbol), para que no compitan con el
+// pan. Listener se registra una sola vez (dataset.listo), la
+// pantalla se reabre varias veces en la misma sesión.
+function configurarInteraccionMapa() {
+  const viewport = document.getElementById('mapa-viewport');
+  if (viewport.dataset.listo) return;
+  viewport.dataset.listo = '1';
+
+  viewport.addEventListener('pointerdown', function (e) {
+    if (e.target.closest('.mapa-nodo-toggle, .mapa-nodo-count')) return;
+    mapaArrastrando = true;
+    mapaPunteroX = e.clientX;
+    mapaPunteroY = e.clientY;
+    viewport.classList.add('arrastrando');
+    viewport.setPointerCapture(e.pointerId);
+  });
+  viewport.addEventListener('pointermove', function (e) {
+    if (!mapaArrastrando) return;
+    mapaTx += e.clientX - mapaPunteroX;
+    mapaTy += e.clientY - mapaPunteroY;
+    mapaPunteroX = e.clientX;
+    mapaPunteroY = e.clientY;
+    aplicarTransformMapa();
+  });
+  function soltarMapa() {
+    mapaArrastrando = false;
+    viewport.classList.remove('arrastrando');
+  }
+  viewport.addEventListener('pointerup', soltarMapa);
+  viewport.addEventListener('pointerleave', soltarMapa);
+  viewport.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    mapaZoom(e.deltaY < 0 ? 1.1 : 0.9);
+  }, { passive: false });
+}
+
 // ── RESIZER (facetas) ───────────────────────────────────────
 function configurarResizerFacetas() {
   const resizer = document.getElementById('resizer-facetas');
@@ -1991,11 +2320,14 @@ function mostrarPantalla(id) {
   document.getElementById('obras-screen').classList.remove('visible');
   document.getElementById('app').style.display = 'none';
   document.getElementById('pantalla-carga').style.display = 'none';
+  document.getElementById('pantalla-mapa').style.display = 'none'; // v3.0.0
 
   if (id === 'app-visible') {
     document.getElementById('app').style.display = 'flex';
   } else if (id === 'carga-visible') {
     document.getElementById('pantalla-carga').style.display = 'flex';
+  } else if (id === 'mapa-visible') {
+    document.getElementById('pantalla-mapa').style.display = 'flex';
   } else {
     document.getElementById(id).classList.add('visible');
   }
@@ -2090,6 +2422,14 @@ function renderExplorador(carpeta) {
   document.getElementById('explorador-contador-num').textContent = carpeta.cantidadPdf;
   document.getElementById('explorador-contador-label').textContent =
     carpeta.cantidadPdf === 1 ? 'PDF suelto en esta carpeta' : 'PDF sueltos en esta carpeta';
+
+  // v3.0.0 — UX chico 1 (Ale, 01-sep): con 0 PDF esperados no tiene
+  // sentido abrir el diálogo de confirmación para terminar avisando
+  // que no hay nada que cargar — se deshabilitan los 2 botones
+  // directamente en vez de dejar que el usuario confirme una carga
+  // vacía.
+  document.getElementById('btn-cargar-nuevo').disabled = carpeta.cantidadPdf === 0;
+  document.getElementById('btn-recargar-todo').disabled = carpeta.cantidadPdf === 0;
 
   renderSincronizacion(carpeta.sincronizacion);
 
@@ -2253,8 +2593,11 @@ function cerrarConfirmCarga() {
 // a la lista (antes no hacía falta bloquearla porque nunca se
 // llamaba estando parado en otra tab).
 function bloquearCargaUI(bloqueada) {
-  document.getElementById('btn-cargar-nuevo').disabled = bloqueada;
-  document.getElementById('btn-recargar-todo').disabled = bloqueada;
+  // v3.0.0 — al desbloquear (bloqueada=false) no hay que forzar
+  // habilitado si la carpeta actual sigue con 0 PDF esperados (UX
+  // chico 1) — se combina con ese estado en vez de pisarlo.
+  document.getElementById('btn-cargar-nuevo').disabled = bloqueada || cantidadPdfActualCarga === 0;
+  document.getElementById('btn-recargar-todo').disabled = bloqueada || cantidadPdfActualCarga === 0;
   document.getElementById('tab-cargar').disabled = bloqueada;
   document.getElementById('tab-pendientes').disabled = bloqueada;
   document.getElementById('tab-vacios').disabled = bloqueada;
