@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v2.4.0</title>
+<title>BDC — Buscador Documental de Contrato v2.4.1</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,6 +17,27 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
+  index_bdc_v2_4_1.html — v2.4.1 (01-sep-2026)
+
+  QUÉ CAMBIÓ EN v2.4.1 (respecto a v2.4.0) — Ale probó "regla vida" y
+  se detectó un malentendido: el modo AND se activaba solo con 2+
+  palabras, sin dejar forma de buscar la frase literal. Se rediseñó
+  el Bloque B como un toggle EXPLÍCITO:
+   - Nuevo switch "Palabras sueltas", al lado de "Palabra completa"
+     (misma fila). Grisado con 0/1 palabra en el buscador (no
+     aplica); habilitado con 2+.
+   - Con "Palabras sueltas" DESACTIVADO (default) y 2+ palabras: la
+     búsqueda es por FRASE literal, igual que siempre — vuelve el
+     comportamiento previo al Bloque B. "Palabra completa" aplica
+     normal sobre esa frase.
+   - Con "Palabras sueltas" ACTIVADO y 2+ palabras: modo AND (cada
+     palabra por separado, cualquier orden/campo, siempre palabra
+     completa) — este es el comportamiento que se había entregado
+     como automático en v2.4.0, ahora detrás del toggle. "Palabra
+     completa" se griza en este modo (ya no tiene efecto propio).
+   - actualizarEstadoOpcionesBusqueda() reemplaza a
+     actualizarEstadoPalabraCompleta() (v2.4.0) — maneja los 2 toggles.
+
   index_bdc_v2_4_0.html — v2.4.0 (01-sep-2026)
 
   QUÉ CAMBIÓ EN v2.4.0 (respecto a v2.3.0) — paquete acordado con
@@ -29,9 +50,9 @@
      ("N documento(s) en Drive que no está(n) en la base"), más clara
      sobre que es una comparación contra lo ya indexado.
    - Bloque "B": búsqueda AND por palabras sueltas (lógica en el
-     backend, bdc_gas_v2_4_0.gs). El toggle "Palabra completa" se
-     griza y queda fijo en ON, sin efecto visible, mientras haya 2+
-     palabras en el buscador (ver actualizarEstadoPalabraCompleta()).
+     backend, bdc_gas_v2_4_0.gs) — entregado inicialmente como modo
+     automático con 2+ palabras; rediseñado como toggle explícito en
+     v2.4.1 (ver arriba).
    - manifest.json + set de íconos reales (documento + lupa ámbar,
      paleta de marca), reemplazando el favicon emoji provisorio.
 
@@ -570,6 +591,7 @@ input { font-family: inherit; }
 }
 #btn-buscar:hover { background: #b45309; }
 #buscador-opciones { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+#buscador-opciones .switch-wrap:nth-of-type(2) { margin-left: 10px; }
 /* v1.4: switch estilo iOS — checkbox real oculto, la apariencia la
    dan el track (label) y el thumb (::after), sin JS nuevo: sigue
    siendo #chk-palabra-completa, mismo id, mismo .checked de siempre. */
@@ -598,13 +620,16 @@ input { font-family: inherit; }
 .switch-wrap input:checked + .switch-track { background: var(--accent); }
 .switch-wrap input:checked + .switch-track::after { transform: translateX(14px); }
 .switch-wrap input:focus-visible + .switch-track { outline: 2px solid var(--accent); outline-offset: 2px; }
-/* v2.4.0 — Bloque B: con 2+ palabras en el buscador, "Palabra
-   completa" queda grisada y fija en ON (siempre matchea palabra
-   completa en modo AND, ver actualizarEstadoPalabraCompleta()). */
+/* v2.4.1 — "Palabras sueltas" (Bloque B) es un toggle explícito que
+   el usuario activa; queda grisado con 0/1 palabra en el buscador
+   (no aplica ahí). "Palabra completa" se griza cuando "Palabras
+   sueltas" está activo con 2+ palabras (deja de tener efecto — el
+   modo AND siempre matchea palabra completa). Ver
+   actualizarEstadoOpcionesBusqueda(). */
 .switch-wrap input:disabled { cursor: not-allowed; }
 .switch-wrap input:disabled + .switch-track { opacity: .45; }
-#lbl-palabra-completa.deshabilitada { opacity: .45; cursor: not-allowed; }
-#lbl-palabra-completa { font-size: .72rem; color: var(--muted); cursor: pointer; user-select: none; }
+#lbl-palabra-completa.deshabilitada, #lbl-palabras-sueltas.deshabilitada { opacity: .45; cursor: not-allowed; }
+#lbl-palabra-completa, #lbl-palabras-sueltas { font-size: .72rem; color: var(--muted); cursor: pointer; user-select: none; }
 #buscar-contador { font-size: .72rem; color: var(--muted); margin-top: 4px; }
 
 /* ── Lista de resultados ─────────────────────── */
@@ -1098,7 +1123,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v2.4.0</div>
+    <div class="caja-version">v2.4.1</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -1155,7 +1180,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v2.4.0</span>
+    <span class="hdr-version">v2.4.1</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <button class="hdr-btn-cambiar-obra" id="btn-cargar-datos" style="display:none" onclick="mostrarPantallaCarga()">Cargar documentos</button>
@@ -1180,6 +1205,15 @@ input { font-family: inherit; }
             <span class="switch-track"></span>
           </span>
           <label id="lbl-palabra-completa" for="chk-palabra-completa">Palabra completa</label>
+          <!-- v2.4.1 — Bloque B rediseñado: "Palabras sueltas" es un
+               toggle explícito, no un modo automático. Grisado con
+               0/1 palabra en el buscador (no aplica), habilitado con
+               2+. Ver actualizarEstadoOpcionesBusqueda(). -->
+          <span class="switch-wrap">
+            <input type="checkbox" id="chk-palabras-sueltas" disabled>
+            <span class="switch-track"></span>
+          </span>
+          <label id="lbl-palabras-sueltas" for="chk-palabras-sueltas" class="deshabilitada">Palabras sueltas</label>
         </div>
         <div id="buscar-contador"></div>
       </div>
@@ -1220,7 +1254,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v2.4.0</span>
+    <span class="hdr-version">v2.4.1</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -1633,6 +1667,7 @@ function mostrarBuscador() {
   document.getElementById('btn-cargar-datos').style.display = obraActual.esAdminObra ? 'inline-block' : 'none';
   document.getElementById('input-buscar').value = '';
   document.getElementById('chk-palabra-completa').checked = false;
+  document.getElementById('chk-palabras-sueltas').checked = false;
   facetasSeleccionadas.etiquetas.clear();
   facetasSeleccionadas.carpetas.clear();
   resultadosActuales = [];
@@ -1651,14 +1686,15 @@ function configurarInputBuscar() {
     if (e.key === 'Enter') ejecutarBusqueda();
   };
   // v1.3: el botón "×" solo se muestra cuando hay texto escrito.
-  // v2.4.0: también se recalcula en vivo el estado del toggle
-  // "Palabra completa" (Bloque B) a medida que se escribe.
+  // v2.4.1: también se recalcula en vivo el estado de los 2 toggles
+  // de opciones de búsqueda a medida que se escribe.
   input.oninput = function () {
     actualizarVisibilidadBtnLimpiar();
-    actualizarEstadoPalabraCompleta();
+    actualizarEstadoOpcionesBusqueda();
   };
   actualizarVisibilidadBtnLimpiar();
-  actualizarEstadoPalabraCompleta();
+  actualizarEstadoOpcionesBusqueda();
+  document.getElementById('chk-palabras-sueltas').onchange = actualizarEstadoOpcionesBusqueda;
 }
 
 function actualizarVisibilidadBtnLimpiar() {
@@ -1666,29 +1702,34 @@ function actualizarVisibilidadBtnLimpiar() {
   document.getElementById('btn-limpiar-buscar').style.display = input.value ? 'block' : 'none';
 }
 
-// v2.4.0 — Bloque B: con 2+ palabras sueltas en el buscador, la
-// búsqueda pasa a modo AND y cada palabra matchea siempre como
-// palabra completa (ver buscarEnObra_ en el backend), sin importar
-// el toggle. Acá solo se refleja eso visualmente: se griza el switch
-// y se lo fija en ON mientras dure el modo multi-palabra, guardando
-// el valor que tenía antes para restaurarlo al volver a 0/1 palabra.
-function actualizarEstadoPalabraCompleta() {
+// v2.4.1 — Bloque B rediseñado a partir del feedback de Ale: "Palabras
+// sueltas" NO se activa solo — es un toggle explícito. Reglas:
+//  - Con 0/1 palabra en el buscador: "Palabras sueltas" no tiene
+//    sentido (no hay 2+ palabras que combinar) -> queda grisado.
+//    "Palabra completa" funciona normal (como siempre).
+//  - Con 2+ palabras y "Palabras sueltas" DESACTIVADO (default): la
+//    búsqueda sigue siendo por FRASE literal (ej. "regla vida" busca
+//    esa frase tal cual); "Palabra completa" sigue aplicando normal
+//    sobre esa frase completa.
+//  - Con 2+ palabras y "Palabras sueltas" ACTIVADO: modo AND — cada
+//    palabra por separado, en cualquier orden/campo, SIEMPRE como
+//    palabra completa (backend lo fuerza sin importar el toggle) ->
+//    "Palabra completa" se griza acá porque ya no tiene efecto.
+function actualizarEstadoOpcionesBusqueda() {
   const input = document.getElementById('input-buscar');
-  const chk = document.getElementById('chk-palabra-completa');
-  const lbl = document.getElementById('lbl-palabra-completa');
+  const chkCompleta = document.getElementById('chk-palabra-completa');
+  const lblCompleta = document.getElementById('lbl-palabra-completa');
+  const chkSueltas = document.getElementById('chk-palabras-sueltas');
+  const lblSueltas = document.getElementById('lbl-palabras-sueltas');
   const nPalabras = input.value.trim() ? input.value.trim().split(/\s+/).filter(Boolean).length : 0;
   const multiTermino = nPalabras >= 2;
 
-  if (multiTermino) {
-    if (!chk.disabled) chk.dataset.valorPrevio = chk.checked ? '1' : '0';
-    chk.checked = true;
-    chk.disabled = true;
-  } else if (chk.disabled) {
-    chk.disabled = false;
-    chk.checked = chk.dataset.valorPrevio === '1';
-    delete chk.dataset.valorPrevio;
-  }
-  lbl.classList.toggle('deshabilitada', multiTermino);
+  chkSueltas.disabled = !multiTermino;
+  lblSueltas.classList.toggle('deshabilitada', !multiTermino);
+
+  const modoAndActivo = multiTermino && chkSueltas.checked;
+  chkCompleta.disabled = modoAndActivo;
+  lblCompleta.classList.toggle('deshabilitada', modoAndActivo);
 }
 
 // v1.3: limpia el input y vuelve a buscar por el mismo camino que
@@ -1699,7 +1740,7 @@ function limpiarBusqueda() {
   const input = document.getElementById('input-buscar');
   input.value = '';
   actualizarVisibilidadBtnLimpiar();
-  actualizarEstadoPalabraCompleta();
+  actualizarEstadoOpcionesBusqueda();
   input.focus();
   ejecutarBusqueda();
 }
@@ -1707,7 +1748,8 @@ function limpiarBusqueda() {
 function ejecutarBusqueda() {
   const termino = document.getElementById('input-buscar').value.trim();
   const palabraCompleta = document.getElementById('chk-palabra-completa').checked;
-  buscar(termino, palabraCompleta);
+  const palabrasSueltas = document.getElementById('chk-palabras-sueltas').checked && !document.getElementById('chk-palabras-sueltas').disabled;
+  buscar(termino, palabraCompleta, palabrasSueltas);
 }
 
 function mostrarEstadoInicial() {
@@ -1737,7 +1779,7 @@ async function cargarResumenObra() {
   }
 }
 
-async function buscar(termino, palabraCompleta) {
+async function buscar(termino, palabraCompleta, palabrasSueltas) {
   const etiquetas = Array.from(facetasSeleccionadas.etiquetas);
   const carpetas = Array.from(facetasSeleccionadas.carpetas);
 
@@ -1755,7 +1797,8 @@ async function buscar(termino, palabraCompleta) {
   try {
     const r = await llamarBackend('buscar', {
       obraId: obraActual.obraId, termino: termino, email: emailActual,
-      etiquetas: etiquetas, carpetas: carpetas, palabraCompleta: !!palabraCompleta
+      etiquetas: etiquetas, carpetas: carpetas, palabraCompleta: !!palabraCompleta,
+      palabrasSueltas: !!palabrasSueltas // v2.4.1 — Bloque B, toggle explícito
     });
     if (!r.ok) {
       document.getElementById('lista-resultados').innerHTML = '<div class="resultados-vacio">Error al buscar.</div>';
