@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0f172a"/>
+  <!-- documento -->
+  <g>
+    <path d="M180 96 h108 l56 56 v240 a16 16 0 0 1 -16 16 h-148 a16 16 0 0 1 -16 -16 v-280 a16 16 0 0 1 16 -16 z"
+          fill="#f1f5f9"/>
+    <path d="M288 96 l56 56 h-40 a16 16 0 0 1 -16 -16 z" fill="#cbd5e1"/>
+    <!-- lineas de texto -->
+    <rect x="204" y="188" width="96" height="14" rx="7" fill="#94a3b8"/>
+    <rect x="204" y="216" width="96" height="14" rx="7" fill="#94a3b8"/>
+    <rect x="204" y="244" width="60" height="14" rx="7" fill="#94a3b8"/>
+  </g>
+  <!-- lupa -->
+  <g>
+    <circle cx="330" cy="330" r="74" fill="none" stroke="#d97706" stroke-width="28"/>
+    <line x1="382" y1="382" x2="440" y2="440" stroke="#d97706" stroke-width="30" stroke-linecap="round"/>
+  </g>
+</svg>
