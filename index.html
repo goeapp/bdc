@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v4.1.1</title>
+<title>BDC — Buscador Documental de Contrato v4.2.0</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,7 +17,34 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
-  index_bdc_v4_1_1.html — v4.1.1 (02-sep-2026)
+  index_bdc_v4_2_0.html — v4.2.0 (02-sep-2026)
+
+  QUÉ CAMBIÓ EN v4.2.0 (respecto a v4.1.1) — 2 entregas juntas
+  (bug chico + funcionalidad), modo quirúrgico. Backend SIN CAMBIOS
+  (bdc_gas_v4_1_0.gs se reentrega igual — las 2 cosas se resuelven
+  100% con datos que el frontend ya tiene o ya puede pedir con
+  actions existentes).
+   - FIX bug de obra vieja en el header: al reabrir la PWA con una
+     obra cacheada en localStorage (sesión persistente), el header
+     mostraba el dato cacheado sin revalidar contra el backend — un
+     F5 seguía mostrando datos viejos si algo cambió en config_obras
+     mientras la pestaña estaba abierta (reportado por Ale, 02-sep).
+     Nueva revalidarObraActual(): corre en paralelo tras entrar con
+     sesión cacheada, sin bloquear ni mostrar spinner; si la obra
+     cambió de nombre/flag admin actualiza header+caché en caliente;
+     si ya no está asignada, manda a elegir de nuevo. Silenciosa ante
+     error/sin conexión.
+   - FACETAS DINÁMICAS: con un filtro activo (término y/o facetas
+     tildadas), los conteos de Etiquetas/Carpetas se recalculan sobre
+     los resultados ya devueltos (cada resultado ya trae Etiquetas y
+     Carpeta — sin pedirle nada nuevo al backend), en vez de mostrar
+     siempre los conteos fijos de toda la obra. Decisión conversada
+     con Ale: SIN auto-exclusión (una etiqueta ya tildada entra en el
+     recorte de las demás — más simple, una sola pasada). Sin ningún
+     filtro activo, se mantienen los conteos fijos de siempre
+     (resumenObra). Las facetas ya tildadas se siguen mostrando
+     aunque su conteo dinámico dé 0, para poder destildarlas siempre.
+     Nueva computarFacetasDinamicas() + bandera hayBusquedaActiva.
 
   QUÉ CAMBIÓ EN v4.1.1 (respecto a v4.1.0) — Ale reportó: hacer zoom
   manual, click en un nodo (se abre el panel de detalle), y el
@@ -1534,7 +1561,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v4.1.1</div>
+    <div class="caja-version">v4.2.0</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -1591,7 +1618,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v4.1.1</span>
+    <span class="hdr-version">v4.2.0</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
@@ -1672,7 +1699,7 @@ input { font-family: inherit; }
 <div id="pantalla-mapa">
   <header id="mapa-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v4.1.1</span>
+    <span class="hdr-version">v4.2.0</span>
     <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
   </header>
@@ -1700,7 +1727,7 @@ input { font-family: inherit; }
 <div id="pantalla-grafo">
   <header id="grafo-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v4.1.1</span>
+    <span class="hdr-version">v4.2.0</span>
     <span class="hdr-obra-nombre" id="grafo-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeGrafo()">← Buscador</button>
   </header>
@@ -1746,7 +1773,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v4.1.1</span>
+    <span class="hdr-version">v4.2.0</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -2084,8 +2111,45 @@ function continuarDespuesDeLogin() {
   if (obraGuardada) {
     obraActual = obraGuardada;
     mostrarBuscador();
+    revalidarObraActual(); // v4.2.0 — ver comentario en la función: fix del header con datos viejos tras F5
   } else {
     cargarObras();
+  }
+}
+
+/**
+ * v4.2.0 — FIX: al reabrir la PWA con una obra ya cacheada en
+ * localStorage (sesión persistente), el header se pintaba directo
+ * con el dato cacheado sin volver a preguntarle nada al backend — si
+ * la obra cambió de nombre, dejó de estar asignada al usuario, o se
+ * creó/editó algo en config_obras mientras la pestaña estaba
+ * abierta, un F5 seguía mostrando el dato viejo (reportado por Ale,
+ * 02-sep: "generé un nuevo proyecto... en el header seguía figurando
+ * el anterior hasta que forcé"). Corre EN PARALELO, sin bloquear ni
+ * mostrar spinner — la obra cacheada ya se muestra al toque, como
+ * siempre; si algo cambió, actualiza header+caché en caliente. Si la
+ * obra ya no está asignada al usuario, manda a elegir de nuevo
+ * (mismo camino que "Cambiar obra"). Silenciosa ante error/sin
+ * conexión — no interrumpe al usuario por esto, ya está viendo la
+ * obra cacheada de todos modos.
+ */
+async function revalidarObraActual() {
+  try {
+    const r = await llamarBackend('listarObrasUsuario', { email: emailActual });
+    if (!r.ok || !obraActual) return;
+    const actualizada = r.obras.find(function (o) { return o.obraId === obraActual.obraId; });
+    if (!actualizada) {
+      cambiarObra(); // ya no está asignada / ya no existe -> volver a elegir
+      return;
+    }
+    if (actualizada.nombreObra !== obraActual.nombreObra || actualizada.esAdminObra !== obraActual.esAdminObra) {
+      obraActual = actualizada;
+      guardarObraActual(obraActual);
+      document.getElementById('hdr-obra-nombre').textContent = obraActual.nombreObra;
+      document.getElementById('btn-cargar-datos').style.display = obraActual.esAdminObra ? 'inline-block' : 'none';
+    }
+  } catch (err) {
+    // sin conexión: silencioso, se sigue mostrando la obra cacheada
   }
 }
 
@@ -2169,6 +2233,7 @@ function mostrarBuscador() {
   facetasSeleccionadas.etiquetas.clear();
   facetasSeleccionadas.carpetas.clear();
   resultadosActuales = [];
+  hayBusquedaActiva = false; // v4.2.0 — reset al entrar/cambiar de obra, Facetas arranca con los conteos fijos
   configurarResizerFacetas();
   configurarInputBuscar();
   mostrarEstadoInicial();
@@ -2277,16 +2342,25 @@ async function cargarResumenObra() {
   }
 }
 
+// v4.2.0 — bandera para distinguir "sin filtro activo" (Facetas
+// muestra los conteos fijos de toda la obra) de "filtro activo con
+// 0 resultados" (Facetas debe mostrar 0/vacío, no los fijos) — ver
+// computarFacetasDinamicas().
+let hayBusquedaActiva = false;
+
 async function buscar(termino, palabraCompleta, palabrasSueltas) {
   const etiquetas = Array.from(facetasSeleccionadas.etiquetas);
   const carpetas = Array.from(facetasSeleccionadas.carpetas);
 
   if (!termino && etiquetas.length === 0 && carpetas.length === 0) {
+    hayBusquedaActiva = false;
     resultadosActuales = [];
     mostrarEstadoInicial();
+    renderFacetas(); // v4.2.0 — sin filtro activo, Facetas vuelve a los conteos fijos de toda la obra
     return;
   }
 
+  hayBusquedaActiva = true;
   document.getElementById('lista-resultados').innerHTML = '<div class="resultados-cargando">Buscando...</div>';
   // v1.3: fix — el contador de la búsqueda anterior quedaba pegado
   // acá mientras la nueva estaba en curso; se limpia en el mismo
@@ -2304,6 +2378,7 @@ async function buscar(termino, palabraCompleta, palabrasSueltas) {
     }
     resultadosActuales = r.resultados;
     renderResultados();
+    renderFacetas(); // v4.2.0 — Facetas dinámicas: recalcula sobre los resultados ya filtrados
   } catch (err) {
     document.getElementById('lista-resultados').innerHTML = '<div class="resultados-vacio">Sin conexión. Revisá tu internet e intentá de nuevo.</div>';
   }
@@ -2364,15 +2439,68 @@ function extraerIdDrive(url) {
 }
 
 // ── FACETAS ──────────────────────────────────────────────────
-// v1.2: las facetas vienen del resumen de la obra (obtenerResumenObra),
-// cargado UNA vez al entrar — no se recalculan por cada búsqueda.
+// v4.2.0 — FACETAS DINÁMICAS: con un filtro activo (término y/o
+// facetas tildadas), los conteos se recalculan sobre los resultados
+// ya devueltos por el backend (cada resultado ya trae Etiquetas y
+// Carpeta, no hace falta pedirle nada nuevo) — mismo criterio de
+// agregación que obtenerResumenObra_ del backend (dedupe por
+// Documento+Carpeta, conteo por Etiqueta/Carpeta, orden descendente
+// por cantidad). Decisión conversada con Ale: SIN auto-exclusión —
+// una etiqueta ya tildada también entra en el recorte de las demás
+// (más simple, una sola pasada sobre los resultados actuales). Sin
+// ningún filtro activo, se mantienen los conteos fijos de toda la
+// obra (resumenObra), igual que antes de esta versión.
 // Descartan valores sin ninguna letra/número (ej. un "-" suelto),
 // mismo criterio que el fix del backend en extraerEtiquetasAutomaticas_.
 function esValorFacetaValido(v) {
   return /[0-9A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(v || '');
 }
 
+/**
+ * v4.2.0 — arma los conteos dinámicos de Etiquetas/Carpetas a partir
+ * de resultadosActuales. Devuelve null si no hay filtro activo (caso
+ * en que renderFacetas debe usar los conteos fijos de resumenObra).
+ * Las facetas ya tildadas se incluyen SIEMPRE, aunque su conteo
+ * dinámico dé 0 — para poder destildarlas siempre, incluso si el
+ * filtro actual las dejó sin resultados.
+ */
+function computarFacetasDinamicas() {
+  if (!hayBusquedaActiva) return null;
+
+  const docsVistos = {}; // clave Documento|||Carpeta -> {etiquetas:[], carpeta}
+  resultadosActuales.forEach(function (r) {
+    const clave = r.documento + '|||' + (r.carpeta || '');
+    if (docsVistos[clave]) return;
+    docsVistos[clave] = { etiquetas: etiquetasDeFila(r), carpeta: r.carpeta || '' };
+  });
+
+  const conteoEtiquetas = {};
+  const conteoCarpetas = {};
+  Object.keys(docsVistos).forEach(function (clave) {
+    const doc = docsVistos[clave];
+    doc.etiquetas.forEach(function (e) { conteoEtiquetas[e] = (conteoEtiquetas[e] || 0) + 1; });
+    if (doc.carpeta) conteoCarpetas[doc.carpeta] = (conteoCarpetas[doc.carpeta] || 0) + 1;
+  });
+
+  facetasSeleccionadas.etiquetas.forEach(function (e) { if (!(e in conteoEtiquetas)) conteoEtiquetas[e] = 0; });
+  facetasSeleccionadas.carpetas.forEach(function (c) { if (!(c in conteoCarpetas)) conteoCarpetas[c] = 0; });
+
+  function aArrayOrdenado(conteo) {
+    return Object.keys(conteo)
+      .sort(function (a, b) { return conteo[b] - conteo[a]; })
+      .map(function (nombre) { return { nombre: nombre, cantidad: conteo[nombre] }; });
+  }
+
+  return { etiquetas: aArrayOrdenado(conteoEtiquetas), carpetas: aArrayOrdenado(conteoCarpetas) };
+}
+
 function renderFacetas() {
+  const dinamicas = computarFacetasDinamicas();
+  if (dinamicas) {
+    renderFacetaGrupo(dinamicas.etiquetas, 'etiquetas', 'faceta-etiquetas', 'limpiar-etiquetas');
+    renderFacetaGrupo(dinamicas.carpetas, 'carpetas', 'faceta-carpetas', 'limpiar-carpetas');
+    return;
+  }
   if (!resumenObra) return;
   renderFacetaGrupo(resumenObra.etiquetas, 'etiquetas', 'faceta-etiquetas', 'limpiar-etiquetas');
   renderFacetaGrupo(resumenObra.carpetas, 'carpetas', 'faceta-carpetas', 'limpiar-carpetas');
