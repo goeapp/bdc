@@ -1,0 +1,20 @@
+{
+  "name": "BDC — Buscador Documental de Contrato",
+  "short_name": "BDC",
+  "description": "Buscador documental multi-obra: indexado, facetas y carga de documentos por contrato.",
+  "start_url": "./index_bdc_v2_4_0.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "icons/bdc_icon_128.png", "sizes": "128x128", "type": "image/png" },
+    { "src": "icons/bdc_icon_152.png", "sizes": "152x152", "type": "image/png" },
+    { "src": "icons/bdc_icon_180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icons/bdc_icon_192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/bdc_icon_192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/bdc_icon_512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/bdc_icon_512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

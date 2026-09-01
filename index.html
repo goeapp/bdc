@@ -3,17 +3,38 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v2.3.0</title>
-<!-- PWA (patrón estándar del stack — falta agregar manifest.json + íconos reales al repo) -->
+<title>BDC — Buscador Documental de Contrato v2.4.0</title>
+<!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
+     favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0f172a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BDC">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔎</text></svg>">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/bdc_icon_32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="icons/bdc_icon_16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
+  index_bdc_v2_4_0.html — v2.4.0 (01-sep-2026)
+
+  QUÉ CAMBIÓ EN v2.4.0 (respecto a v2.3.0) — paquete acordado con
+  Ale tras probar v2.3.0 en producción, en 4 partes:
+   - Bloqueo total de pantalla durante "Reintentar"/"Cargar como
+     Plano" desde Documentos con error/vacíos (antes solo se
+     deshabilitaba el botón puntual de esa card): se reusa
+     bloquearCargaUI(), ya usada en la tab "Cargar documentos".
+   - Chip de sincronización: nueva redacción para "nuevos"
+     ("N documento(s) en Drive que no está(n) en la base"), más clara
+     sobre que es una comparación contra lo ya indexado.
+   - Bloque "B": búsqueda AND por palabras sueltas (lógica en el
+     backend, bdc_gas_v2_4_0.gs). El toggle "Palabra completa" se
+     griza y queda fijo en ON, sin efecto visible, mientras haya 2+
+     palabras en el buscador (ver actualizarEstadoPalabraCompleta()).
+   - manifest.json + set de íconos reales (documento + lupa ámbar,
+     paleta de marca), reemplazando el favicon emoji provisorio.
+
   index_bdc_v2_3_0.html — v2.3.0 (31-ago-2026)
 
   QUÉ CAMBIÓ EN v2.3.0 (respecto a v2.2.1) — Ale detectó que 3 de los
@@ -577,6 +598,12 @@ input { font-family: inherit; }
 .switch-wrap input:checked + .switch-track { background: var(--accent); }
 .switch-wrap input:checked + .switch-track::after { transform: translateX(14px); }
 .switch-wrap input:focus-visible + .switch-track { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* v2.4.0 — Bloque B: con 2+ palabras en el buscador, "Palabra
+   completa" queda grisada y fija en ON (siempre matchea palabra
+   completa en modo AND, ver actualizarEstadoPalabraCompleta()). */
+.switch-wrap input:disabled { cursor: not-allowed; }
+.switch-wrap input:disabled + .switch-track { opacity: .45; }
+#lbl-palabra-completa.deshabilitada { opacity: .45; cursor: not-allowed; }
 #lbl-palabra-completa { font-size: .72rem; color: var(--muted); cursor: pointer; user-select: none; }
 #buscar-contador { font-size: .72rem; color: var(--muted); margin-top: 4px; }
 
@@ -1071,7 +1098,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v2.3.0</div>
+    <div class="caja-version">v2.4.0</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -1128,7 +1155,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v2.3.0</span>
+    <span class="hdr-version">v2.4.0</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <button class="hdr-btn-cambiar-obra" id="btn-cargar-datos" style="display:none" onclick="mostrarPantallaCarga()">Cargar documentos</button>
@@ -1193,7 +1220,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v2.3.0</span>
+    <span class="hdr-version">v2.4.0</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -1624,15 +1651,44 @@ function configurarInputBuscar() {
     if (e.key === 'Enter') ejecutarBusqueda();
   };
   // v1.3: el botón "×" solo se muestra cuando hay texto escrito.
+  // v2.4.0: también se recalcula en vivo el estado del toggle
+  // "Palabra completa" (Bloque B) a medida que se escribe.
   input.oninput = function () {
     actualizarVisibilidadBtnLimpiar();
+    actualizarEstadoPalabraCompleta();
   };
   actualizarVisibilidadBtnLimpiar();
+  actualizarEstadoPalabraCompleta();
 }
 
 function actualizarVisibilidadBtnLimpiar() {
   const input = document.getElementById('input-buscar');
   document.getElementById('btn-limpiar-buscar').style.display = input.value ? 'block' : 'none';
+}
+
+// v2.4.0 — Bloque B: con 2+ palabras sueltas en el buscador, la
+// búsqueda pasa a modo AND y cada palabra matchea siempre como
+// palabra completa (ver buscarEnObra_ en el backend), sin importar
+// el toggle. Acá solo se refleja eso visualmente: se griza el switch
+// y se lo fija en ON mientras dure el modo multi-palabra, guardando
+// el valor que tenía antes para restaurarlo al volver a 0/1 palabra.
+function actualizarEstadoPalabraCompleta() {
+  const input = document.getElementById('input-buscar');
+  const chk = document.getElementById('chk-palabra-completa');
+  const lbl = document.getElementById('lbl-palabra-completa');
+  const nPalabras = input.value.trim() ? input.value.trim().split(/\s+/).filter(Boolean).length : 0;
+  const multiTermino = nPalabras >= 2;
+
+  if (multiTermino) {
+    if (!chk.disabled) chk.dataset.valorPrevio = chk.checked ? '1' : '0';
+    chk.checked = true;
+    chk.disabled = true;
+  } else if (chk.disabled) {
+    chk.disabled = false;
+    chk.checked = chk.dataset.valorPrevio === '1';
+    delete chk.dataset.valorPrevio;
+  }
+  lbl.classList.toggle('deshabilitada', multiTermino);
 }
 
 // v1.3: limpia el input y vuelve a buscar por el mismo camino que
@@ -1643,6 +1699,7 @@ function limpiarBusqueda() {
   const input = document.getElementById('input-buscar');
   input.value = '';
   actualizarVisibilidadBtnLimpiar();
+  actualizarEstadoPalabraCompleta();
   input.focus();
   ejecutarBusqueda();
 }
@@ -2029,7 +2086,10 @@ function renderSincronizacion(sync) {
     return;
   }
   const partes = [];
-  if (sync.nuevos.length) partes.push(sync.nuevos.length + (sync.nuevos.length === 1 ? ' documento nuevo en Drive' : ' documentos nuevos en Drive'));
+  // v2.4.0 — redacción nueva: "nuevo en Drive" no dejaba claro que es
+  // una comparación contra lo ya indexado. Ahora dice explícitamente
+  // que está en Drive pero no en la base.
+  if (sync.nuevos.length) partes.push(sync.nuevos.length + (sync.nuevos.length === 1 ? ' documento en Drive que no está en la base' : ' documentos en Drive que no están en la base'));
   if (sync.faltantes.length) partes.push(sync.faltantes.length + (sync.faltantes.length === 1 ? ' documento ya no está en Drive (¿renombrado o borrado?)' : ' documentos ya no están en Drive (¿renombrados o borrados?)'));
   el.className = 'visible sync-alerta';
   el.innerHTML = '<span class="sync-icono">⚠</span><span>' + escapeHtml(partes.join(' — ')) + '.</span>';
@@ -2142,9 +2202,17 @@ function cerrarConfirmCarga() {
 // Cargar/Recargar; el resto de la pantalla (tabs, breadcrumb,
 // subcarpetas, etiquetas, "← Buscador", Limpiar) seguía activo
 // mientras corría una carga. Ahora se bloquea todo.
+// v2.4.0 — se reusa esta misma función (mismo criterio, ver Ale
+// 01-sep) para bloquear TODA la pantalla de carga mientras corre
+// "Reintentar"/"Cargar como Plano" desde las tabs "Documentos con
+// error" y "Documentos vacíos" — antes solo se llamaba desde
+// ejecutarCarga() en la tab "Cargar documentos". Se suma tab-cargar
+// a la lista (antes no hacía falta bloquearla porque nunca se
+// llamaba estando parado en otra tab).
 function bloquearCargaUI(bloqueada) {
   document.getElementById('btn-cargar-nuevo').disabled = bloqueada;
   document.getElementById('btn-recargar-todo').disabled = bloqueada;
+  document.getElementById('tab-cargar').disabled = bloqueada;
   document.getElementById('tab-pendientes').disabled = bloqueada;
   document.getElementById('tab-vacios').disabled = bloqueada;
   document.getElementById('btn-volver-buscador-carga').disabled = bloqueada;
@@ -2298,10 +2366,15 @@ async function cargarPendientes() {
   }
 }
 
+// v2.4.0 — se suma bloquearCargaUI(true/false) alrededor de la
+// llamada: antes solo se deshabilitaba este botón puntual, y el
+// resto de la pantalla (tabs, breadcrumb, etc.) seguía usable
+// mientras corría el reintento en el backend (unos segundos).
 async function reintentarPendiente(link, card, etiquetasManuales) {
   const btn = card.querySelector('.btn-reintentar');
   btn.disabled = true;
   btn.textContent = 'Reintentando…';
+  bloquearCargaUI(true);
   try {
     const r = await llamarBackend('reintentarPendiente', { obraId: obraActual.obraId, email: emailActual, link: link, etiquetas: etiquetasManuales || [] });
     if (r.ok) {
@@ -2316,6 +2389,8 @@ async function reintentarPendiente(link, card, etiquetasManuales) {
     btn.disabled = false;
     btn.textContent = 'Reintentar';
     alert('Sin conexión.');
+  } finally {
+    bloquearCargaUI(false);
   }
 }
 
@@ -2389,10 +2464,15 @@ document.addEventListener('click', function () {
   document.querySelectorAll('.accion-dropdown.abierto').forEach(function (d) { d.classList.remove('abierto'); });
 });
 
+// v2.4.0 — mismo agregado que reintentarPendiente: bloquearCargaUI
+// alrededor de la llamada, para que "Reintentar" desde Documentos
+// vacíos bloquee toda la pantalla, no solo el botón "Acción ▾" de
+// esta card puntual.
 async function reintentarVacio(link, card, etiquetasManuales) {
   const btn = card.querySelector('.btn-accion-menu');
   btn.disabled = true;
   btn.textContent = 'Reintentando…';
+  bloquearCargaUI(true);
   try {
     const r = await llamarBackend('reintentarVacio', { obraId: obraActual.obraId, email: emailActual, link: link, etiquetas: etiquetasManuales || [] });
     if (r.ok) {
@@ -2406,16 +2486,21 @@ async function reintentarVacio(link, card, etiquetasManuales) {
     btn.disabled = false;
     btn.textContent = 'Acción ▾';
     alert('Sin conexión.');
+  } finally {
+    bloquearCargaUI(false);
   }
 }
 
 // v2.3.0 — "Cargar como Plano": registra el documento con texto
 // vacío + etiqueta "Plano", para PDF de AutoCAD sin texto real
 // extraíble (no tiene sentido seguir reintentando la extracción).
+// v2.4.0 — se suma bloquearCargaUI alrededor de la llamada, mismo
+// criterio que reintentarVacio/reintentarPendiente.
 async function cargarComoPlano(link, card, etiquetasManuales) {
   const btn = card.querySelector('.btn-accion-menu');
   btn.disabled = true;
   btn.textContent = 'Cargando…';
+  bloquearCargaUI(true);
   try {
     const r = await llamarBackend('cargarComoPlano', { obraId: obraActual.obraId, email: emailActual, link: link, etiquetas: etiquetasManuales || [] });
     if (r.ok) {
@@ -2429,6 +2514,8 @@ async function cargarComoPlano(link, card, etiquetasManuales) {
     btn.disabled = false;
     btn.textContent = 'Acción ▾';
     alert('Sin conexión.');
+  } finally {
+    bloquearCargaUI(false);
   }
 }
 
