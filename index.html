@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v3.2.0</title>
+<title>BDC — Buscador Documental de Contrato v4.0.0</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,7 +17,43 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
-  index_bdc_v3_2_0.html — v3.2.0 (02-sep-2026)
+  index_bdc_v4_0_0.html — v4.0.0 (02-sep-2026)
+
+  QUÉ CAMBIÓ EN v4.0.0 (respecto a v3.2.0) — Entrega 3: Grafo estilo
+  Obsidian. Salto de versión mayor porque suma una vista nueva de
+  navegación (mismo criterio que v2.0.0 con la pantalla de carga y
+  v3.0.0 con el Mapa Documental). Backend: nueva action
+  obtenerGrafoObra (ver bdc_gas_v4_0_0.gs) — sin cambios en el resto
+  del backend/datos.
+   - Nueva pantalla "pantalla-grafo", botón "Conexiones" en el header
+     del buscador (al lado de "Mapa"), visible a todos los usuarios
+     (vista de consulta, mismo criterio que el Mapa Documental).
+   - d3-force sobre el mismo #mapa-lienzo-wrap/spinner que el Mapa
+     Documental (reusa el bundle D3 ya cargado, sin script nuevo).
+   - Selector de tipo de conexión (2 botones tipo tab, nunca ambos
+     tipos mezclados en el mismo lienzo): "Etiquetas compartidas" ↔
+     "Referencias entre documentos" — cambiar el selector recalcula
+     el grafo completo desde cero (nuevo llamado a obtenerGrafoObra).
+   - Tamaño de nodo = raíz cuadrada de la cantidad de conexiones
+     (GRAFO_RADIO_BASE + GRAFO_RADIO_ESCALA*sqrt(conexiones)) — no
+     lineal, para que un hub con muchas conexiones no tape el resto
+     del lienzo (decidido con Ale: sin tope duro, pero con escala no
+     lineal). forceCollide()+forceManyBody()+forceLink() de d3-force
+     resuelven el acomodo automático sin reglas propias de layout.
+   - Referencias "crudas" (código mencionado en el texto de un
+     documento que no corresponde a NINGÚN documento indexado en la
+     obra) — decidido con Ale: NO se dibujan como nodo en el Grafo.
+     El backend ya las descarta al armar los edges (ver
+     obtenerGrafoObra_). Quedan solo como dato en ReferenciaDocumentos
+     de la columna del Sheet — no visibles en esta vista.
+   - Panel lateral (se abre a la derecha, mismo ancho/estilo que el
+     panel de Facetas) al hacer click en un nodo: Nombre + Carpeta,
+     Etiquetas del documento, y la lista de con qué otros documentos
+     se conecta y por qué (etiqueta compartida específica, o código
+     de referencia específico) — agrupado por documento conectado.
+   - Zoom/pan y spinner reusan exactamente los mismos estilos y
+     controles del Mapa Documental (mapaZoom/mapaResetVista
+     equivalentes, prefijo grafo* en vez de mapa* para no chocar).
 
   QUÉ CAMBIÓ EN v3.2.0 (respecto a v3.1.0) — Ale probó v3.1.0: OK en
   todo (bug de botones resuelto, Mapa Documental andando bien), un
@@ -993,6 +1029,123 @@ input { font-family: inherit; }
 .mapa-badge-texto { font-family: 'DM Sans', sans-serif; font-size: 10px; font-weight: 700; pointer-events: none; }
 
 /* ─────────────────────────────────────────────────
+   PANTALLA — GRAFO / CONEXIONES (v4.0.0, consulta)
+   d3-force sobre el mismo lenguaje visual del Mapa Documental
+   (misma card con marco, mismo spinner). Panel lateral reusa el
+   estilo de #panel-facetas del buscador.
+───────────────────────────────────────────────── */
+#pantalla-grafo { display: none; flex-direction: column; height: 100vh; }
+#grafo-header { height: var(--header-h); background: var(--accent2); display: flex; align-items: center; padding: 0 18px; gap: 12px; flex-shrink: 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+#grafo-toolbar {
+  display        : flex;
+  align-items    : center;
+  gap            : 10px;
+  padding        : 10px 18px;
+  border-bottom  : 1px solid var(--border);
+  background     : var(--surface);
+  flex-shrink    : 0;
+}
+#grafo-titulo { font-size: .82rem; color: var(--muted); font-weight: 600; }
+
+/* Selector de tipo de conexión — 2 botones tipo tab, mutuamente
+   excluyentes (nunca ambos tipos mezclados en el mismo lienzo). */
+#grafo-tipo-selector { display: flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.grafo-tipo-btn {
+  padding    : 6px 14px;
+  border     : none;
+  background : var(--surface);
+  color      : var(--muted);
+  font-size  : .78rem;
+  font-weight: 600;
+  transition : all .15s;
+}
+.grafo-tipo-btn + .grafo-tipo-btn { border-left: 1px solid var(--border); }
+.grafo-tipo-btn:hover  { background: var(--bg); color: var(--text); }
+.grafo-tipo-btn.activo { background: var(--accent); color: #fff; }
+
+#grafo-cuerpo { flex: 1; display: flex; padding: 16px; gap: 14px; overflow: hidden; }
+#grafo-lienzo-wrap {
+  flex         : 1;
+  border-radius: var(--radius);
+  border       : 1px solid var(--border);
+  background   : var(--surface);
+  box-shadow   : var(--shadow-md);
+  overflow     : hidden;
+  position     : relative;
+  display      : flex;
+}
+#grafo-viewport { flex: 1; position: relative; overflow: hidden; cursor: grab; touch-action: none; }
+#grafo-viewport.arrastrando { cursor: grabbing; }
+#grafo-svg { width: 100%; height: 100%; display: block; }
+#grafo-spinner-wrap {
+  position       : absolute;
+  inset          : 0;
+  display        : none;
+  align-items    : center;
+  justify-content: center;
+  background     : var(--surface);
+}
+#grafo-vacio-msg {
+  position   : absolute;
+  inset      : 0;
+  display    : none;
+  align-items: center;
+  justify-content: center;
+  padding    : 40px;
+  text-align : center;
+  font-size  : .84rem;
+  color      : var(--muted);
+}
+
+/* Panel lateral — mismo ancho/comportamiento que #panel-facetas */
+#grafo-panel {
+  width        : var(--facetas-w);
+  min-width    : var(--facetas-min);
+  max-width    : var(--facetas-max);
+  flex-shrink  : 0;
+  border-radius: var(--radius);
+  box-shadow   : 0 1px 4px rgba(0,0,0,.07), 0 0 0 .5px rgba(0,0,0,.06);
+  background   : var(--surface);
+  display      : none;
+  flex-direction: column;
+  overflow     : hidden;
+}
+#grafo-panel.visible { display: flex; }
+#grafo-panel-body { flex: 1; overflow-y: auto; padding: 14px 16px 20px; }
+.grafo-panel-vacio { font-size: .8rem; color: var(--muted); }
+.grafo-panel-nombre { font-size: .92rem; font-weight: 700; color: var(--text); margin-bottom: 2px; word-break: break-word; }
+.grafo-panel-carpeta { font-size: .74rem; color: var(--muted); margin-bottom: 14px; }
+.grafo-panel-seccion-titulo {
+  font-size     : .68rem;
+  font-weight   : 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color         : var(--muted);
+  margin        : 16px 0 8px;
+}
+.grafo-panel-seccion-titulo:first-of-type { margin-top: 0; }
+.grafo-panel-etiquetas { display: flex; flex-wrap: wrap; gap: 6px; }
+.grafo-panel-conexion {
+  padding      : 8px 10px;
+  border       : 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 6px;
+  font-size    : .78rem;
+  cursor       : pointer;
+  transition   : border-color .15s, background .15s;
+}
+.grafo-panel-conexion:hover { border-color: var(--accent2); background: var(--bg); }
+.grafo-panel-conexion-nombre { font-weight: 600; color: var(--text); }
+.grafo-panel-conexion-motivo { color: var(--muted); font-size: .72rem; margin-top: 2px; }
+
+/* Nodos/enlaces (SVG) */
+.grafo-link { stroke: var(--border); stroke-width: 1.2px; }
+.grafo-nodo-circulo { cursor: pointer; stroke: rgba(255,255,255,.5); stroke-width: 1.5px; transition: stroke-width .1s; }
+.grafo-nodo-circulo:hover { stroke-width: 3px; }
+.grafo-nodo-circulo.seleccionado { stroke: var(--text); stroke-width: 3px; }
+.grafo-nodo-texto { font-family: 'DM Sans', sans-serif; font-size: 10.5px; fill: var(--text); pointer-events: none; }
+
+/* ─────────────────────────────────────────────────
    PANTALLA DE CARGA (v2.1.0, solo admin) — 2 columnas
 ───────────────────────────────────────────────── */
 #pantalla-carga { display: none; flex-direction: column; height: 100vh; }
@@ -1298,7 +1451,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v3.2.0</div>
+    <div class="caja-version">v4.0.0</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -1355,13 +1508,16 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v3.2.0</span>
+    <span class="hdr-version">v4.0.0</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
          los usuarios de la obra (no solo admin, a diferencia de
          "Cargar documentos"). -->
     <button class="hdr-btn-cambiar-obra" id="btn-abrir-mapa" onclick="mostrarPantallaMapa()">Mapa</button>
+    <!-- v4.0.0 — Grafo (Entrega 3): de consulta, visible para todos
+         los usuarios de la obra, mismo criterio que "Mapa". -->
+    <button class="hdr-btn-cambiar-obra" id="btn-abrir-grafo" onclick="mostrarPantallaGrafo()">Conexiones</button>
     <button class="hdr-btn-cambiar-obra" id="btn-cargar-datos" style="display:none" onclick="mostrarPantallaCarga()">Cargar documentos</button>
     <span class="hdr-sep"></span>
     <span class="hdr-email" id="hdr-email"></span>
@@ -1433,7 +1589,7 @@ input { font-family: inherit; }
 <div id="pantalla-mapa">
   <header id="mapa-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v3.2.0</span>
+    <span class="hdr-version">v4.0.0</span>
     <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
   </header>
@@ -1457,11 +1613,57 @@ input { font-family: inherit; }
   </div>
 </div>
 
+<!-- ═══════════════ PANTALLA — GRAFO / CONEXIONES (v4.0.0, consulta) ═══════════════ -->
+<div id="pantalla-grafo">
+  <header id="grafo-header">
+    <span class="hdr-logo">BDC</span>
+    <span class="hdr-version">v4.0.0</span>
+    <span class="hdr-obra-nombre" id="grafo-hdr-obra-nombre"></span>
+    <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeGrafo()">← Buscador</button>
+  </header>
+  <div id="grafo-toolbar">
+    <span id="grafo-titulo">Conexiones entre documentos</span>
+    <span class="mapa-toolbar-sep"></span>
+    <div id="grafo-tipo-selector">
+      <button class="grafo-tipo-btn activo" id="grafo-tipo-etiquetas" onclick="cambiarTipoConexionGrafo('etiquetas')">Etiquetas compartidas</button>
+      <button class="grafo-tipo-btn" id="grafo-tipo-referencias" onclick="cambiarTipoConexionGrafo('referencias')">Referencias entre documentos</button>
+    </div>
+    <span class="mapa-toolbar-sep"></span>
+    <button class="mapa-btn-zoom" onclick="grafoZoom(0.8)" title="Alejar" aria-label="Alejar">−</button>
+    <button class="mapa-btn-zoom" onclick="grafoZoom(1.25)" title="Acercar" aria-label="Acercar">+</button>
+    <button class="mapa-btn-zoom" onclick="grafoResetVista()" title="Restablecer vista">Reset</button>
+  </div>
+  <div id="grafo-cuerpo">
+    <div id="grafo-lienzo-wrap">
+      <div id="grafo-viewport">
+        <svg id="grafo-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div id="grafo-spinner-wrap">
+          <div>
+            <div class="spinner"></div>
+            <div class="mapa-spinner-label">Armando el grafo...</div>
+          </div>
+        </div>
+        <div id="grafo-vacio-msg" style="display:none">Todavía no hay conexiones de este tipo entre los documentos indexados de esta obra.</div>
+      </div>
+    </div>
+    <!-- PANEL LATERAL — detalle de nodo (mismo ancho/estilo que panel-facetas) -->
+    <div id="grafo-panel">
+      <div class="panel-header">
+        <span class="panel-title">Detalle</span>
+        <button class="faceta-limpiar visible" onclick="cerrarPanelGrafo()">Cerrar</button>
+      </div>
+      <div id="grafo-panel-body">
+        <div class="grafo-panel-vacio">Hacé click en un nodo para ver su detalle.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════ PANTALLA — CARGA DE DOCUMENTOS (solo admin, v2.0.0) ═══════════════ -->
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v3.2.0</span>
+    <span class="hdr-version">v4.0.0</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -2397,6 +2599,210 @@ function mapaResetVista() {
   mapaSvg.transition().duration(200).call(mapaZoomBehavior.transform, d3.zoomIdentity.translate(48, vpH / 2));
 }
 
+// ── VISTA GRAFO / CONEXIONES (v4.0.0, Entrega 3) ──────────────
+// d3-force sobre el mismo bundle D3 ya cargado para el Mapa
+// Documental (d3.forceSimulation/forceLink/forceManyBody/forceCollide
+// vienen en el mismo paquete que d3-hierarchy/d3-zoom). Layout NO
+// jerárquico (a diferencia del árbol del Mapa): cada nodo es un
+// documento indexado, cada línea una conexión (Etiquetas compartidas
+// o ReferenciaDocumentos, nunca ambos tipos mezclados — ver switch
+// del toolbar). Referencias "crudas" (código mencionado que no
+// corresponde a ningún documento indexado) NO llegan acá — el
+// backend (obtenerGrafoObra_) ya las descarta al armar los edges.
+const GRAFO_RADIO_BASE = 9;     // radio de un nodo sin conexiones
+const GRAFO_RADIO_ESCALA = 6;   // multiplica sqrt(conexiones) — no lineal, para que un hub no tape el resto
+const GRAFO_COLOR_POR_TIPO = { etiquetas: '#d97706', referencias: '#0369a1' }; // ambar / celeste (paleta ya usada en Mapa Documental)
+
+let grafoSvg = null, grafoZoomG = null, grafoZoomBehavior = null, grafoSimulation = null;
+let grafoNodos = [], grafoEdges = [], grafoTipoActual = 'etiquetas', grafoNodoSeleccionadoId = null;
+
+function mostrarPantallaGrafo() {
+  mostrarPantalla('grafo-visible');
+  document.getElementById('grafo-hdr-obra-nombre').textContent = obraActual.nombreObra;
+  cerrarPanelGrafo();
+  cargarGrafo();
+}
+
+function volverABuscadorDesdeGrafo() {
+  mostrarPantalla('app-visible');
+}
+
+function cambiarTipoConexionGrafo(tipo) {
+  if (tipo === grafoTipoActual) return;
+  grafoTipoActual = tipo;
+  document.getElementById('grafo-tipo-etiquetas').classList.toggle('activo', tipo === 'etiquetas');
+  document.getElementById('grafo-tipo-referencias').classList.toggle('activo', tipo === 'referencias');
+  cerrarPanelGrafo();
+  cargarGrafo();
+}
+
+async function cargarGrafo() {
+  const spinnerWrap = document.getElementById('grafo-spinner-wrap');
+  const svgEl = document.getElementById('grafo-svg');
+  const vacioMsg = document.getElementById('grafo-vacio-msg');
+  if (grafoSimulation) { grafoSimulation.stop(); grafoSimulation = null; }
+  vacioMsg.style.display = 'none';
+  svgEl.style.display = 'none';
+  spinnerWrap.style.display = 'flex';
+  spinnerWrap.innerHTML = '<div><div class="spinner"></div><div class="mapa-spinner-label">Armando el grafo...</div></div>';
+  try {
+    const r = await llamarBackend('obtenerGrafoObra', { obraId: obraActual.obraId, tipoConexion: grafoTipoActual, email: emailActual });
+    if (!r.ok) {
+      spinnerWrap.innerHTML = '<div class="mapa-spinner-label">' + escapeHtml(r.error || 'No se pudo armar el grafo.') + '</div>';
+      return;
+    }
+    grafoNodos = r.nodos;
+    grafoEdges = r.edges;
+    spinnerWrap.style.display = 'none';
+    if (!grafoEdges.length) {
+      vacioMsg.style.display = 'flex';
+      return;
+    }
+    svgEl.style.display = 'block';
+    inicializarGrafoD3();
+  } catch (err) {
+    spinnerWrap.innerHTML = '<div class="mapa-spinner-label">Sin conexión. Revisá tu internet e intentá de nuevo.</div>';
+  }
+}
+
+function inicializarGrafoD3() {
+  const viewport = document.getElementById('grafo-viewport');
+  const svgEl = document.getElementById('grafo-svg');
+  svgEl.innerHTML = ''; // reinicia si se reabre/cambia de tipo en la misma sesión
+
+  const ancho = viewport.clientWidth || 800;
+  const alto = viewport.clientHeight || 600;
+
+  // d3.forceLink necesita objetos, no solo ids, en source/target — se
+  // clonan los edges acá para no mutar r.edges guardado en grafoEdges.
+  const nodosSim = grafoNodos.map(function (n) { return Object.assign({}, n); });
+  const nodosPorId = {};
+  nodosSim.forEach(function (n) { nodosPorId[n.id] = n; n.__radio = GRAFO_RADIO_BASE + GRAFO_RADIO_ESCALA * Math.sqrt(n.conexiones || 0); });
+  const edgesSim = grafoEdges.map(function (e) { return { origen: e.origen, destino: e.destino, source: e.origen, target: e.destino, tipo: e.tipo, etiquetas: e.etiquetas, codigos: e.codigos }; });
+
+  grafoSvg = d3.select(svgEl);
+  grafoZoomG = grafoSvg.append('g').attr('class', 'grafo-zoom-g');
+  const gLinks = grafoZoomG.append('g').attr('class', 'grafo-links');
+  const gNodes = grafoZoomG.append('g').attr('class', 'grafo-nodes');
+
+  const linkSel = gLinks.selectAll('line.grafo-link').data(edgesSim).enter()
+    .append('line').attr('class', 'grafo-link');
+
+  const nodeSel = gNodes.selectAll('g.grafo-nodo').data(nodosSim, function (d) { return d.id; }).enter()
+    .append('g').attr('class', 'grafo-nodo')
+    .on('click', function (event, d) {
+      event.stopPropagation();
+      abrirPanelGrafo(d.id);
+    });
+
+  nodeSel.append('title').text(function (d) { return d.nombre; });
+  nodeSel.append('circle')
+    .attr('class', 'grafo-nodo-circulo')
+    .attr('r', function (d) { return d.__radio; })
+    .attr('fill', GRAFO_COLOR_POR_TIPO[grafoTipoActual]);
+  nodeSel.append('text')
+    .attr('class', 'grafo-nodo-texto')
+    .attr('x', function (d) { return d.__radio + 4; })
+    .attr('y', 3)
+    .text(function (d) { return d.nombre.length > 28 ? d.nombre.slice(0, 27) + '…' : d.nombre; });
+
+  nodeSel.call(d3.drag()
+    .on('start', function (event, d) { if (!event.active) grafoSimulation.alphaTarget(0.25).restart(); d.fx = d.x; d.fy = d.y; })
+    .on('drag', function (event, d) { d.fx = event.x; d.fy = event.y; })
+    .on('end', function (event, d) { if (!event.active) grafoSimulation.alphaTarget(0); d.fx = null; d.fy = null; }));
+
+  grafoSimulation = d3.forceSimulation(nodosSim)
+    .force('link', d3.forceLink(edgesSim).id(function (d) { return d.id; }).distance(85).strength(0.35))
+    .force('charge', d3.forceManyBody().strength(-230))
+    .force('collide', d3.forceCollide().radius(function (d) { return d.__radio + 22; }))
+    .force('center', d3.forceCenter(ancho / 2, alto / 2))
+    .on('tick', function () {
+      linkSel.attr('x1', function (d) { return d.source.x; }).attr('y1', function (d) { return d.source.y; })
+        .attr('x2', function (d) { return d.target.x; }).attr('y2', function (d) { return d.target.y; });
+      nodeSel.attr('transform', function (d) { return 'translate(' + d.x + ',' + d.y + ')'; });
+    });
+
+  grafoZoomBehavior = d3.zoom()
+    .scaleExtent([0.3, 3])
+    .filter(function (event) { return !event.ctrlKey && !event.button || event.type === 'wheel'; })
+    .on('zoom', function (event) { grafoZoomG.attr('transform', event.transform); });
+  grafoSvg.call(grafoZoomBehavior);
+  grafoSvg.on('click', function () { cerrarPanelGrafo(); });
+}
+
+/**
+ * Abre (o actualiza, si ya está abierto) el panel lateral con el
+ * detalle de un nodo: Nombre + Carpeta, Etiquetas del documento, y
+ * la lista de documentos con los que se conecta + el motivo
+ * (etiqueta compartida específica, o código de referencia
+ * específico) — agrupado por documento conectado.
+ */
+function abrirPanelGrafo(nodoId) {
+  const nodo = grafoNodos.find(function (n) { return n.id === nodoId; });
+  if (!nodo) return;
+  grafoNodoSeleccionadoId = nodoId;
+
+  d3.selectAll('.grafo-nodo-circulo').classed('seleccionado', function (d) { return d.id === nodoId; });
+
+  const conexionesPorDestino = {};
+  grafoEdges.forEach(function (e) {
+    let otroId = null;
+    if (e.origen === nodoId) otroId = e.destino;
+    else if (e.destino === nodoId) otroId = e.origen;
+    if (!otroId) return;
+    const otro = grafoNodos.find(function (n) { return n.id === otroId; });
+    if (!otro) return;
+    let motivo;
+    if (e.tipo === 'etiqueta') motivo = 'Etiqueta' + (e.etiquetas.length > 1 ? 's' : '') + ' compartida' + (e.etiquetas.length > 1 ? 's' : '') + ': ' + e.etiquetas.join(', ');
+    else motivo = (e.origen === nodoId ? 'Hace referencia a este documento' : 'Este documento hace referencia') + ' (' + e.codigos.join(', ') + ')';
+    conexionesPorDestino[otroId] = { nodo: otro, motivo: motivo };
+  });
+
+  const listaConexiones = Object.keys(conexionesPorDestino)
+    .map(function (id) { return conexionesPorDestino[id]; })
+    .sort(function (a, b) { return a.nodo.nombre.localeCompare(b.nodo.nombre, 'es'); });
+
+  const etiquetasHtml = (nodo.etiquetas && nodo.etiquetas.length)
+    ? nodo.etiquetas.map(function (e) { return '<span class="resultado-etiqueta-chip">' + escapeHtml(e) + '</span>'; }).join('')
+    : '<span class="grafo-panel-vacio">Sin etiquetas.</span>';
+
+  const conexionesHtml = listaConexiones.length
+    ? listaConexiones.map(function (c) {
+      return '<div class="grafo-panel-conexion" onclick="abrirPanelGrafo(\'' + c.nodo.id.replace(/'/g, "\\'") + '\')">'
+        + '<div class="grafo-panel-conexion-nombre">' + escapeHtml(c.nodo.nombre) + '</div>'
+        + '<div class="grafo-panel-conexion-motivo">' + escapeHtml(c.motivo) + '</div>'
+        + '</div>';
+    }).join('')
+    : '<div class="grafo-panel-vacio">Sin conexiones de este tipo.</div>';
+
+  document.getElementById('grafo-panel-body').innerHTML =
+    '<div class="grafo-panel-nombre">' + escapeHtml(nodo.nombre) + '</div>'
+    + '<div class="grafo-panel-carpeta">' + escapeHtml(nodo.carpeta || '—') + '</div>'
+    + '<div class="grafo-panel-seccion-titulo">Etiquetas</div>'
+    + '<div class="grafo-panel-etiquetas">' + etiquetasHtml + '</div>'
+    + '<div class="grafo-panel-seccion-titulo">Se conecta con (' + listaConexiones.length + ')</div>'
+    + conexionesHtml;
+
+  document.getElementById('grafo-panel').classList.add('visible');
+}
+
+function cerrarPanelGrafo() {
+  grafoNodoSeleccionadoId = null;
+  document.getElementById('grafo-panel').classList.remove('visible');
+  document.getElementById('grafo-panel-body').innerHTML = '<div class="grafo-panel-vacio">Hacé click en un nodo para ver su detalle.</div>';
+  d3.selectAll('.grafo-nodo-circulo').classed('seleccionado', false);
+}
+
+function grafoZoom(factor) {
+  if (!grafoSvg || !grafoZoomBehavior) return;
+  grafoSvg.transition().duration(150).call(grafoZoomBehavior.scaleBy, factor);
+}
+
+function grafoResetVista() {
+  if (!grafoSvg || !grafoZoomBehavior) return;
+  grafoSvg.transition().duration(200).call(grafoZoomBehavior.transform, d3.zoomIdentity);
+}
+
 // ── RESIZER (facetas) ───────────────────────────────────────
 function configurarResizerFacetas() {
   const resizer = document.getElementById('resizer-facetas');
@@ -2464,6 +2870,7 @@ function mostrarPantalla(id) {
   document.getElementById('app').style.display = 'none';
   document.getElementById('pantalla-carga').style.display = 'none';
   document.getElementById('pantalla-mapa').style.display = 'none'; // v3.0.0
+  document.getElementById('pantalla-grafo').style.display = 'none'; // v4.0.0
 
   if (id === 'app-visible') {
     document.getElementById('app').style.display = 'flex';
@@ -2471,6 +2878,8 @@ function mostrarPantalla(id) {
     document.getElementById('pantalla-carga').style.display = 'flex';
   } else if (id === 'mapa-visible') {
     document.getElementById('pantalla-mapa').style.display = 'flex';
+  } else if (id === 'grafo-visible') {
+    document.getElementById('pantalla-grafo').style.display = 'flex';
   } else {
     document.getElementById(id).classList.add('visible');
   }
