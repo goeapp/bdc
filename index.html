@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v3.0.0</title>
+<title>BDC — Buscador Documental de Contrato v3.1.0</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,7 +17,40 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
-  index_bdc_v3_0_0.html — v3.0.0 (01-sep-2026)
+  index_bdc_v3_1_0.html — v3.1.0 (02-sep-2026)
+
+  QUÉ CAMBIÓ EN v3.1.0 (respecto a v3.0.0) — Ale probó v3.0.0: los 3
+  UX chicos de carga funcionaron OK, pero la Vista Mapa Mental fue
+  rechazada ("no me gusta nada", no se parecía a NotebookLM) y
+  apareció un bug real chico en la pantalla de carga. Sesión de
+  diseño nueva (02-sep) con referencia visual real de NotebookLM
+  (captura de Ale) antes de tocar código.
+   - Vista renombrada: "Mapa Mental" → "Mapa Documental" en título y
+     comentarios.
+   - Mapa Documental — rediseño visual completo, mismo backend/datos
+     de v3.0.0 sin cambios (obtenerArbolCarpetas_, conteo acumulado,
+     click→filtro): árbol HORIZONTAL con D3 (d3-hierarchy para el
+     layout de árbol + d3-zoom para pan/zoom, vía CDN cdnjs, en vez
+     del motor de canvas a mano de v3.0.0 — el Grafo de Entrega 3 va
+     a usar d3-force en el mismo SVG, porque ahí sí es una red no
+     jerárquica). Tarjetas redondeadas coloreadas por nivel de
+     profundidad (versión oscura/saturada de lila→celeste→verde,
+     ciclando cada 3 niveles), conectadas por líneas curvas
+     (d3.linkHorizontal). Contador de documentos = badge circular en
+     la esquina de cada tarjeta (ámbar si tiene datos y filtra al
+     click, gris si está en 0). Expandir/contraer = círculo +/− en el
+     borde derecho de cada tarjeta con hijos (antes era chevron ▸).
+     Spinner girando (mismo componente .spinner ya usado en login)
+     mientras espera obtenerArbolCarpetas, reemplaza el texto
+     estático "Cargando árbol...". El lienzo (#mapa-viewport) ahora
+     vive dentro de una card con borde/sombra/fondo propio
+     (#mapa-lienzo-wrap), ya no queda "suelto" sobre el fondo.
+   - Bug fix (carga de documentos): en cargarNodoCarpeta(), los
+     botones "Cargar (solo lo nuevo)"/"Recargar todo esta carpeta"
+     ahora se deshabilitan apenas arranca la consulta a
+     explorarCarpeta, no recién cuando responde el backend — antes
+     quedaban habilitados con el estado de la carpeta ANTERIOR
+     mientras la consulta estaba en curso.
 
   QUÉ CAMBIÓ EN v3.0.0 (respecto a v2.4.1) — Entrega 1 de la sesión de
   diseño Mapa/Grafo: Vista "Mapa Mental" nueva + 3 ajustes de UX
@@ -856,10 +889,11 @@ input { font-family: inherit; }
 .btn-confirm-aceptar:hover { background: #b45309; }
 
 /* ─────────────────────────────────────────────────
-   PANTALLA — MAPA MENTAL (v3.0.0, consulta)
-   Árbol de Carpetas dentro de un lienzo con zoom/pan propio
-   (traslado+escala vía transform, sin librería externa). Pensado
-   como motor reusable para el futuro Grafo (Entrega 3).
+   PANTALLA — MAPA DOCUMENTAL (v3.1.0, consulta)
+   Árbol horizontal de Carpetas con D3 (d3-hierarchy + d3-zoom),
+   dentro de una card con marco propio. Reemplaza el árbol indentado
+   y el motor de canvas a mano de v3.0.0 (rechazado por Ale). Datos y
+   backend sin cambios (obtenerArbolCarpetas_).
 ───────────────────────────────────────────────── */
 #pantalla-mapa { display: none; flex-direction: column; height: 100vh; }
 #mapa-header { height: var(--header-h); background: var(--accent2); display: flex; align-items: center; padding: 0 18px; gap: 12px; flex-shrink: 0; border-bottom: 1px solid rgba(255,255,255,.06); }
@@ -887,71 +921,55 @@ input { font-family: inherit; }
 }
 .mapa-btn-zoom:hover { background: var(--bg); border-color: var(--accent2); }
 
+/* v3.1.0 — marco visual: el lienzo ya no queda "suelto" sobre el
+   fondo de la pantalla, vive dentro de una card propia. */
+#mapa-lienzo-wrap {
+  flex         : 1;
+  margin       : 16px;
+  border-radius: var(--radius);
+  border       : 1px solid var(--border);
+  background   : var(--surface);
+  box-shadow   : var(--shadow-md);
+  overflow     : hidden;
+  position     : relative;
+  display      : flex;
+}
 #mapa-viewport {
   flex        : 1;
   position    : relative;
   overflow    : hidden;
-  background  : var(--bg);
   cursor      : grab;
   touch-action: none;
 }
 #mapa-viewport.arrastrando { cursor: grabbing; }
-#mapa-canvas {
-  position       : absolute;
-  top            : 0;
-  left           : 0;
-  transform-origin: 0 0;
-  padding        : 32px 32px 32px 24px;
-}
-#mapa-arbol.resultados-cargando { padding: 24px; color: var(--muted); }
+#mapa-svg { width: 100%; height: 100%; display: block; }
 
-.mapa-nodo { user-select: none; }
-.mapa-nodo-fila {
-  display      : flex;
-  align-items  : center;
-  gap          : 6px;
-  padding      : 5px 10px 5px 4px;
-  border-radius: var(--radius-sm);
-  white-space  : nowrap;
-  cursor       : default;
-}
-.mapa-nodo-fila:hover { background: var(--surface); }
-.mapa-nodo-toggle {
-  width        : 18px;
-  height       : 18px;
-  flex-shrink  : 0;
-  display      : flex;
-  align-items  : center;
+/* v3.1.0 — spinner mientras espera obtenerArbolCarpetas, mismo
+   componente .spinner que login/carga, en vez del texto estático
+   "Cargando árbol..." de v3.0.0. */
+#mapa-spinner-wrap {
+  position       : absolute;
+  inset          : 0;
+  display        : none;
+  align-items    : center;
   justify-content: center;
-  color        : var(--muted);
-  cursor       : pointer;
-  font-size    : .7rem;
-  transition   : transform .12s;
+  background     : var(--surface);
 }
-.mapa-nodo-toggle.expandido { transform: rotate(90deg); }
-.mapa-nodo-toggle.sin-hijos { visibility: hidden; }
-.mapa-nodo-icono { color: var(--accent2); flex-shrink: 0; }
-.mapa-nodo-nombre { font-size: .84rem; color: var(--text); }
-.mapa-nodo-nombre.raiz { font-weight: 700; font-size: .92rem; }
-.mapa-nodo-count {
-  margin-left  : 4px;
-  padding      : 1px 9px;
-  border-radius: 999px;
-  font-size    : .72rem;
-  font-weight  : 700;
-  background   : var(--bg);
-  color        : var(--muted);
-  border       : 1px solid var(--border);
-}
-.mapa-nodo-count.con-datos {
-  background: var(--tag-bg);
-  color     : var(--accent);
-  border-color: #fde68a;
-  cursor    : pointer;
-}
-.mapa-nodo-count.con-datos:hover { background: var(--tag-sel); color: var(--tag-sfg); }
-.mapa-nodo-hijos { margin-left: 22px; border-left: 1px dashed var(--border); padding-left: 4px; }
-.mapa-nodo-hijos.oculto { display: none; }
+.mapa-spinner-label { font-size: .8rem; color: var(--muted); text-align: center; }
+
+/* Tarjetas de nodo (SVG) */
+.mapa-link { fill: none; stroke: var(--border); stroke-width: 1.5px; }
+.mapa-nodo-rect { cursor: default; }
+.mapa-nodo-rect.raiz { stroke: rgba(255,255,255,.35); stroke-width: 1.5px; }
+.mapa-nodo-texto { font-family: 'DM Sans', sans-serif; font-size: 12.5px; fill: #fff; pointer-events: none; }
+.mapa-nodo-texto.raiz { font-weight: 700; font-size: 13.5px; }
+.mapa-toggle-circulo { cursor: pointer; }
+.mapa-toggle-circulo circle { fill: var(--surface); stroke-width: 1.6px; transition: fill .12s; }
+.mapa-toggle-circulo:hover circle { fill: var(--bg); }
+.mapa-toggle-texto { font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 700; pointer-events: none; }
+.mapa-badge circle { transition: fill .12s; }
+.mapa-badge.con-datos { cursor: pointer; }
+.mapa-badge-texto { font-family: 'DM Sans', sans-serif; font-size: 10px; font-weight: 700; pointer-events: none; }
 
 /* ─────────────────────────────────────────────────
    PANTALLA DE CARGA (v2.1.0, solo admin) — 2 columnas
@@ -1259,7 +1277,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v3.0.0</div>
+    <div class="caja-version">v3.1.0</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -1316,7 +1334,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v3.0.0</span>
+    <span class="hdr-version">v3.1.0</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
@@ -1390,24 +1408,30 @@ input { font-family: inherit; }
   </div>
 </div>
 
-<!-- ═══════════════ PANTALLA — MAPA MENTAL (v3.0.0, consulta) ═══════════════ -->
+<!-- ═══════════════ PANTALLA — MAPA DOCUMENTAL (v3.1.0, consulta) ═══════════════ -->
 <div id="pantalla-mapa">
   <header id="mapa-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v3.0.0</span>
+    <span class="hdr-version">v3.1.0</span>
     <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
   </header>
   <div id="mapa-toolbar">
-    <span id="mapa-titulo">Mapa Mental — árbol de documentos por Carpeta</span>
+    <span id="mapa-titulo">Mapa Documental — árbol de documentos por Carpeta</span>
     <span class="mapa-toolbar-sep"></span>
     <button class="mapa-btn-zoom" onclick="mapaZoom(0.8)" title="Alejar" aria-label="Alejar">−</button>
     <button class="mapa-btn-zoom" onclick="mapaZoom(1.25)" title="Acercar" aria-label="Acercar">+</button>
     <button class="mapa-btn-zoom" onclick="mapaResetVista()" title="Restablecer vista">Reset</button>
   </div>
-  <div id="mapa-viewport">
-    <div id="mapa-canvas">
-      <div id="mapa-arbol" class="resultados-cargando">Cargando árbol...</div>
+  <div id="mapa-lienzo-wrap">
+    <div id="mapa-viewport">
+      <svg id="mapa-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div id="mapa-spinner-wrap">
+        <div>
+          <div class="spinner"></div>
+          <div class="mapa-spinner-label">Cargando árbol...</div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1416,7 +1440,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v3.0.0</span>
+    <span class="hdr-version">v3.1.0</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -1503,6 +1527,12 @@ input { font-family: inherit; }
     </div>
   </div>
 </div>
+
+<!-- v3.1.0 — D3 (bundle completo) vía CDN, para el Mapa Documental
+     (d3-hierarchy: layout de árbol; d3-zoom: pan/zoom), en reemplazo
+     del motor de canvas a mano de v3.0.0. Reusado en el futuro Grafo
+     (Entrega 3) con d3-force, ya incluido en el mismo bundle. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 
 <script>
 /* ============================================================
@@ -2087,24 +2117,28 @@ function limpiarFaceta(tipo) {
   ejecutarBusqueda();
 }
 
-// ── VISTA MAPA MENTAL (v3.0.0) ───────────────────────────────
-// Árbol de Carpetas dentro de un lienzo con zoom/pan propio, sin
-// librería externa (transform: translate+scale sobre #mapa-canvas,
-// arrastre con Pointer Events, zoom con rueda o botones). Pensado
-// como motor reusable para el futuro Grafo (Entrega 3).
-let mapaEscala = 1;
-let mapaTx = 0;
-let mapaTy = 0;
-let mapaArrastrando = false;
-let mapaPunteroX = 0;
-let mapaPunteroY = 0;
+// ── VISTA MAPA DOCUMENTAL (v3.1.0) ────────────────────────────
+// Árbol horizontal de Carpetas con D3 (d3-hierarchy para el layout
+// + d3-zoom para pan/zoom), en reemplazo del motor de canvas a mano
+// de v3.0.0 (rechazado por Ale). Backend/datos sin cambios — mismo
+// obtenerArbolCarpetas_, mismo criterio de conteo acumulado. Motor
+// pensado para reusarse en el futuro Grafo (Entrega 3), ahí con
+// d3-force en vez de d3.tree() porque el Grafo no es jerárquico.
+const MAPA_NODE_W = 190;
+const MAPA_NODE_H = 40;
+const MAPA_LEVEL_GAP = 260;  // separación horizontal entre niveles
+const MAPA_SIB_GAP = 16;     // separación vertical mínima entre hermanos
+// Paleta por nivel de profundidad — versión oscura/saturada de la
+// referencia de Ale (lila/celeste/verde de NotebookLM), adaptada a
+// la estética BDC. Se cicla cada 3 niveles si el árbol es más hondo.
+const MAPA_COLORES_NIVEL = ['#4338ca', '#0369a1', '#15803d'];
+
+let mapaSvg = null, mapaZoomG = null, mapaZoomBehavior = null, mapaRoot = null, mapaIdSeq = 0;
 
 function mostrarPantallaMapa() {
   mostrarPantalla('mapa-visible');
   document.getElementById('mapa-hdr-obra-nombre').textContent = obraActual.nombreObra;
-  mapaResetVista();
   cargarArbolMapa();
-  configurarInteraccionMapa();
 }
 
 function volverABuscadorDesdeMapa() {
@@ -2112,85 +2146,176 @@ function volverABuscadorDesdeMapa() {
 }
 
 async function cargarArbolMapa() {
-  const cont = document.getElementById('mapa-arbol');
-  cont.className = 'resultados-cargando';
-  cont.textContent = 'Cargando árbol...';
+  const spinnerWrap = document.getElementById('mapa-spinner-wrap');
+  const svgEl = document.getElementById('mapa-svg');
+  spinnerWrap.style.display = 'flex';
+  spinnerWrap.innerHTML = '<div><div class="spinner"></div><div class="mapa-spinner-label">Cargando árbol...</div></div>';
+  svgEl.style.display = 'none';
   try {
     const r = await llamarBackend('obtenerArbolCarpetas', { obraId: obraActual.obraId, email: emailActual });
     if (!r.ok) {
-      cont.className = 'resultados-vacio';
-      cont.textContent = r.error || 'No se pudo cargar el árbol.';
+      spinnerWrap.innerHTML = '<div class="mapa-spinner-label">' + escapeHtml(r.error || 'No se pudo cargar el árbol.') + '</div>';
       return;
     }
-    cont.className = '';
-    cont.innerHTML = '';
-    cont.appendChild(renderNodoMapa(r.arbol, true));
+    spinnerWrap.style.display = 'none';
+    svgEl.style.display = 'block';
+    inicializarMapaD3(r.arbol);
   } catch (err) {
-    cont.className = 'resultados-vacio';
-    cont.textContent = 'Sin conexión. Revisá tu internet e intentá de nuevo.';
+    spinnerWrap.innerHTML = '<div class="mapa-spinner-label">Sin conexión. Revisá tu internet e intentá de nuevo.</div>';
   }
 }
 
-// v3.0.0 — nodo raíz arranca expandido; el resto colapsado (se
-// expande con el toggle ▸, click en el nombre no hace nada — solo
-// el toggle y el contador son interactivos, para no competir con el
-// arrastre del lienzo).
-function renderNodoMapa(nodo, esRaiz) {
-  const div = document.createElement('div');
-  div.className = 'mapa-nodo';
+function inicializarMapaD3(datosArbol) {
+  const viewport = document.getElementById('mapa-viewport');
+  const svgEl = document.getElementById('mapa-svg');
+  svgEl.innerHTML = ''; // reinicia si se reabre el mapa en la misma sesión
 
-  const fila = document.createElement('div');
-  fila.className = 'mapa-nodo-fila';
+  const root = d3.hierarchy(datosArbol, function (d) { return d.hijos; });
+  mapaIdSeq = 0;
+  root.each(function (d) { d.data.__id = mapaIdSeq++; });
+  // Colapsado inicial: raíz expandida, el resto colapsado (mismo
+  // criterio que v3.0.0).
+  root.descendants().forEach(function (d) {
+    if (d.depth > 0 && d.children) {
+      d._children = d.children;
+      d.children = null;
+    }
+  });
+  mapaRoot = root;
 
-  const tieneHijos = !!(nodo.hijos && nodo.hijos.length);
-  const toggle = document.createElement('span');
-  toggle.className = 'mapa-nodo-toggle' + (tieneHijos ? '' : ' sin-hijos') + (esRaiz ? ' expandido' : '');
-  toggle.textContent = '▸';
-  fila.appendChild(toggle);
+  mapaSvg = d3.select(svgEl);
+  mapaZoomG = mapaSvg.append('g').attr('class', 'mapa-zoom-g');
+  mapaZoomG.append('g').attr('class', 'mapa-links');
+  mapaZoomG.append('g').attr('class', 'mapa-nodes');
 
-  const icono = document.createElement('span');
-  icono.className = 'mapa-nodo-icono';
-  icono.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>';
-  fila.appendChild(icono);
+  mapaZoomBehavior = d3.zoom()
+    .scaleExtent([0.4, 2.5])
+    .filter(function (event) {
+      // no iniciar pan/zoom por drag si el click arrancó sobre un
+      // elemento interactivo del nodo (badge o toggle)
+      return !event.target.closest('.mapa-toggle-circulo, .mapa-badge.con-datos') && (!event.ctrlKey || event.type === 'wheel') && !event.button;
+    })
+    .on('zoom', function (event) { mapaZoomG.attr('transform', event.transform); });
+  mapaSvg.call(mapaZoomBehavior);
 
-  const nombre = document.createElement('span');
-  nombre.className = 'mapa-nodo-nombre' + (esRaiz ? ' raiz' : '');
-  nombre.textContent = nodo.nombre;
-  fila.appendChild(nombre);
+  renderMapaD3();
 
-  // v3.0.0 (Ale, 01-sep) — click en el contador aplica TODAS las
-  // rutas exactas de Carpeta del subárbol de este nodo como filtro
-  // (OR entre sí, ver buscarEnObra_/carpetasFiltro) y cierra el
-  // mapa — así una carpeta con subcarpetas filtra también lo que
-  // está más abajo, no solo lo que matchea su propio nombre exacto.
-  const count = document.createElement('span');
-  const conDatos = nodo.rutas && nodo.rutas.length > 0;
-  count.className = 'mapa-nodo-count' + (conDatos ? ' con-datos' : '');
-  count.textContent = nodo.cantidad;
-  if (conDatos) {
-    count.title = 'Filtrar el buscador por esta carpeta';
-    count.onclick = function (e) { e.stopPropagation(); filtrarPorNodoMapa(nodo.rutas); };
-  }
-  fila.appendChild(count);
-
-  div.appendChild(fila);
-
-  if (tieneHijos) {
-    const hijosWrap = document.createElement('div');
-    hijosWrap.className = 'mapa-nodo-hijos' + (esRaiz ? '' : ' oculto');
-    nodo.hijos.forEach(function (h) { hijosWrap.appendChild(renderNodoMapa(h, false)); });
-    div.appendChild(hijosWrap);
-
-    toggle.onclick = function () {
-      const expandir = !toggle.classList.contains('expandido');
-      toggle.classList.toggle('expandido', expandir);
-      hijosWrap.classList.toggle('oculto', !expandir);
-    };
-  }
-
-  return div;
+  const vpH = viewport.clientHeight || 600;
+  mapaSvg.call(mapaZoomBehavior.transform, d3.zoomIdentity.translate(48, vpH / 2));
 }
 
+function mapaTruncarNombre_(nombre) {
+  const MAX = 22;
+  return nombre.length > MAX ? nombre.slice(0, MAX - 1) + '…' : nombre;
+}
+
+function renderMapaD3() {
+  const layout = d3.tree().nodeSize([MAPA_NODE_H + MAPA_SIB_GAP, MAPA_LEVEL_GAP]);
+  layout(mapaRoot);
+
+  const nodos = mapaRoot.descendants();
+  const enlaces = mapaRoot.links();
+
+  // d3.tree() reparte x=posición transversal, y=profundidad; para
+  // que el árbol se vea HORIZONTAL invertimos los ejes en pantalla:
+  // y del nodo (profundidad) -> eje X, x del nodo -> eje Y.
+  const linkGen = d3.linkHorizontal()
+    .x(function (d) { return d.y; })
+    .y(function (d) { return d.x; });
+
+  const t = mapaSvg.transition().duration(200);
+
+  // ── enlaces ──
+  const linkSel = mapaZoomG.select('g.mapa-links').selectAll('path.mapa-link')
+    .data(enlaces, function (d) { return d.target.data.__id; });
+  linkSel.exit().remove();
+  linkSel.enter().append('path').attr('class', 'mapa-link')
+    .merge(linkSel)
+    .transition(t)
+    .attr('d', linkGen);
+
+  // ── nodos ──
+  const nodeSel = mapaZoomG.select('g.mapa-nodes').selectAll('g.mapa-nodo')
+    .data(nodos, function (d) { return d.data.__id; });
+  nodeSel.exit().remove();
+
+  const nodeEnter = nodeSel.enter().append('g').attr('class', 'mapa-nodo')
+    .attr('transform', function (d) { return 'translate(' + d.y + ',' + d.x + ')'; });
+
+  const esRaiz = function (d) { return d.depth === 0; };
+  const colorNivel = function (d) { return MAPA_COLORES_NIVEL[d.depth % MAPA_COLORES_NIVEL.length]; };
+
+  nodeEnter.append('rect')
+    .attr('class', function (d) { return 'mapa-nodo-rect' + (esRaiz(d) ? ' raiz' : ''); })
+    .attr('x', 0).attr('y', -MAPA_NODE_H / 2)
+    .attr('width', MAPA_NODE_W).attr('height', MAPA_NODE_H)
+    .attr('rx', 10)
+    .attr('fill', colorNivel);
+
+  nodeEnter.append('title'); // tooltip nativo con el nombre completo
+
+  nodeEnter.append('text')
+    .attr('class', function (d) { return 'mapa-nodo-texto' + (esRaiz(d) ? ' raiz' : ''); })
+    .attr('x', 14).attr('y', 1).attr('dominant-baseline', 'middle');
+
+  // toggle +/− (solo si tiene hijos, visibles u ocultos)
+  const toggleEnter = nodeEnter.filter(function (d) { return d.data.hijos && d.data.hijos.length; })
+    .append('g').attr('class', 'mapa-toggle-circulo')
+    .on('click', function (event, d) {
+      event.stopPropagation();
+      if (d.children) { d._children = d.children; d.children = null; }
+      else { d.children = d._children; d._children = null; }
+      renderMapaD3();
+    });
+  toggleEnter.append('circle').attr('cx', MAPA_NODE_W).attr('cy', 0).attr('r', 9);
+  toggleEnter.append('text').attr('class', 'mapa-toggle-texto')
+    .attr('x', MAPA_NODE_W).attr('y', 1).attr('text-anchor', 'middle').attr('dominant-baseline', 'middle');
+
+  // badge de contador (esquina superior derecha)
+  const badgeEnter = nodeEnter.append('g').attr('class', 'mapa-badge')
+    .on('click', function (event, d) {
+      const rutas = d.data.rutas;
+      if (!rutas || !rutas.length) return;
+      event.stopPropagation();
+      filtrarPorNodoMapa(rutas);
+    });
+  badgeEnter.append('circle').attr('cx', MAPA_NODE_W - 4).attr('cy', -MAPA_NODE_H / 2 + 2).attr('r', 11);
+  badgeEnter.append('text').attr('class', 'mapa-badge-texto')
+    .attr('x', MAPA_NODE_W - 4).attr('y', -MAPA_NODE_H / 2 + 3)
+    .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle');
+
+  const nodeMerge = nodeEnter.merge(nodeSel);
+
+  nodeMerge.transition(t)
+    .attr('transform', function (d) { return 'translate(' + d.y + ',' + d.x + ')'; });
+
+  nodeMerge.select('rect.mapa-nodo-rect').attr('fill', colorNivel);
+  nodeMerge.select('title').text(function (d) { return d.data.nombre; });
+  nodeMerge.select('text.mapa-nodo-texto').text(function (d) { return mapaTruncarNombre_(d.data.nombre); });
+
+  nodeMerge.select('.mapa-toggle-circulo').each(function (d) {
+    d3.select(this).select('circle').attr('stroke', colorNivel(d));
+    d3.select(this).select('text').text(d.children ? '−' : '+').attr('fill', colorNivel(d));
+  });
+
+  nodeMerge.select('.mapa-badge').each(function (d) {
+    const conDatos = d.data.rutas && d.data.rutas.length > 0;
+    d3.select(this).classed('con-datos', conDatos);
+    d3.select(this).select('circle')
+      .attr('fill', conDatos ? 'var(--accent)' : 'var(--border)');
+    d3.select(this).select('text')
+      .text(d.data.cantidad)
+      .attr('fill', conDatos ? '#fff' : 'var(--muted)');
+    d3.select(this).select('title').remove();
+    if (conDatos) d3.select(this).append('title').text('Filtrar el buscador por esta carpeta');
+  });
+}
+
+// v3.0.0 (Ale, 01-sep) — click en el badge aplica TODAS las rutas
+// exactas de Carpeta del subárbol de este nodo como filtro (OR entre
+// sí, ver buscarEnObra_/carpetasFiltro) y cierra el mapa — así una
+// carpeta con subcarpetas filtra también lo que está más abajo, no
+// solo lo que matchea su propio nombre exacto.
 function filtrarPorNodoMapa(rutas) {
   if (!rutas || !rutas.length) return;
   facetasSeleccionadas.carpetas = new Set(rutas);
@@ -2199,59 +2324,16 @@ function filtrarPorNodoMapa(rutas) {
   ejecutarBusqueda();
 }
 
-function aplicarTransformMapa() {
-  document.getElementById('mapa-canvas').style.transform =
-    'translate(' + mapaTx + 'px,' + mapaTy + 'px) scale(' + mapaEscala + ')';
-}
-
 function mapaZoom(factor) {
-  mapaEscala = Math.min(2.5, Math.max(0.4, mapaEscala * factor));
-  aplicarTransformMapa();
+  if (!mapaSvg || !mapaZoomBehavior) return;
+  mapaSvg.transition().duration(150).call(mapaZoomBehavior.scaleBy, factor);
 }
 
 function mapaResetVista() {
-  mapaEscala = 1;
-  mapaTx = 24;
-  mapaTy = 24;
-  aplicarTransformMapa();
-}
-
-// v3.0.0 — arrastre con Pointer Events sobre #mapa-viewport; no
-// arrastra si el click empezó sobre el toggle o el contador
-// (elementos interactivos del árbol), para que no compitan con el
-// pan. Listener se registra una sola vez (dataset.listo), la
-// pantalla se reabre varias veces en la misma sesión.
-function configurarInteraccionMapa() {
+  if (!mapaSvg || !mapaZoomBehavior) return;
   const viewport = document.getElementById('mapa-viewport');
-  if (viewport.dataset.listo) return;
-  viewport.dataset.listo = '1';
-
-  viewport.addEventListener('pointerdown', function (e) {
-    if (e.target.closest('.mapa-nodo-toggle, .mapa-nodo-count')) return;
-    mapaArrastrando = true;
-    mapaPunteroX = e.clientX;
-    mapaPunteroY = e.clientY;
-    viewport.classList.add('arrastrando');
-    viewport.setPointerCapture(e.pointerId);
-  });
-  viewport.addEventListener('pointermove', function (e) {
-    if (!mapaArrastrando) return;
-    mapaTx += e.clientX - mapaPunteroX;
-    mapaTy += e.clientY - mapaPunteroY;
-    mapaPunteroX = e.clientX;
-    mapaPunteroY = e.clientY;
-    aplicarTransformMapa();
-  });
-  function soltarMapa() {
-    mapaArrastrando = false;
-    viewport.classList.remove('arrastrando');
-  }
-  viewport.addEventListener('pointerup', soltarMapa);
-  viewport.addEventListener('pointerleave', soltarMapa);
-  viewport.addEventListener('wheel', function (e) {
-    e.preventDefault();
-    mapaZoom(e.deltaY < 0 ? 1.1 : 0.9);
-  }, { passive: false });
+  const vpH = viewport.clientHeight || 600;
+  mapaSvg.transition().duration(200).call(mapaZoomBehavior.transform, d3.zoomIdentity.translate(48, vpH / 2));
 }
 
 // ── RESIZER (facetas) ───────────────────────────────────────
@@ -2387,6 +2469,12 @@ async function cargarNodoCarpeta(folderId) {
   document.getElementById('explorador-contador').classList.remove('con-pdf');
   document.getElementById('explorador-contador-num').textContent = '–';
   document.getElementById('explorador-contador-label').textContent = 'Cargando…';
+  // v3.1.0 — fix (Ale, 01-sep probando v3.0.0): antes estos 2 botones
+  // quedaban habilitados con el estado de la carpeta ANTERIOR mientras
+  // esta consulta estaba en curso, hasta que renderExplorador() los
+  // corregía recién al responder el backend. Se deshabilitan ya acá.
+  document.getElementById('btn-cargar-nuevo').disabled = true;
+  document.getElementById('btn-recargar-todo').disabled = true;
   // v2.1.0 — el camino ya lo tiene el breadcrumb armado (entrarCarpeta
   // e irABreadcrumb lo empujan ANTES de llamar acá); en la primera
   // carga de la obra (breadcrumbCarga vacío) se manda sin camino y el
