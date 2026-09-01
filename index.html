@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v4.0.1</title>
+<title>BDC — Buscador Documental de Contrato v4.1.0</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,7 +17,43 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
-  index_bdc_v4_0_1.html — v4.0.1 (02-sep-2026)
+  index_bdc_v4_1_0.html — v4.1.0 (02-sep-2026)
+
+  QUÉ CAMBIÓ EN v4.1.0 (respecto a v4.0.1) — Ale probó v4.0.1 con
+  "3000 PPTK" (3 capturas): Referencias entre documentos ya
+  funcionaba bien (14 conexiones reales con motivo). Etiquetas
+  compartidas seguía apretado pese al retuning de v4.0.1 — porque el
+  grafo documento<->documento por etiqueta compartida da, con
+  etiquetas de uso general, un grafo CASI COMPLETO. No era un
+  problema de layout, era el criterio de conexión. Rediseño a grafo
+  BIPARTITO (ver bdc_gas_v4_1_0.gs) — mismo criterio que la vista de
+  tags de Obsidian. Además, 2 ajustes pedidos por Ale sobre las
+  capturas:
+   - Etiquetas de texto separadas en su PROPIA capa SVG (gLabels),
+     agregada DESPUÉS de la capa de nodos en el DOM — así cualquier
+     etiqueta visible queda SIEMPRE por encima de TODOS los
+     círculos, sin importar el orden de creación. Antes el texto
+     vivía adentro del mismo <g> que su círculo, y un nodo dibujado
+     más tarde en el mismo nivel podía taparle el texto a otro (se
+     veía en la captura: un círculo vecino tapando parte del nombre
+     del documento seleccionado).
+   - Fuerza de centrado MUY suave (forceX/forceY, strength 0.025):
+     en modo Referencias, documentos sin ninguna conexión podían
+     derivar lejos del clúster conectado, y el zoom-to-fit terminaba
+     abarcando un área enorme para meterlos a todos (se veía en la
+     captura: el clúster real reducido a un puñado de píxeles en el
+     centro). No reordena la estructura, solo evita que los sueltos
+     se vayan al horizonte.
+   - Color de nodo diferenciado: nodos-ETIQUETA en violeta
+     (GRAFO_COLOR_NODO_ETIQUETA), nodos-documento con el color de
+     siempre por modo. Los nodos-etiqueta quedan con su label
+     SIEMPRE visible (son el punto de orientación del grafo
+     bipartito); los nodos-documento siguen ocultos hasta hover,
+     como en v4.0.1.
+   - Panel lateral: contenido condicional por tipo de nodo — un
+     nodo-etiqueta muestra "Documentos con esta etiqueta (N)"; un
+     nodo-documento en modo Etiquetas muestra "Se conecta con (N)"
+     listando las etiquetas que tiene, no otros documentos.
 
   QUÉ CAMBIÓ EN v4.0.1 (respecto a v4.0.0) — Ale probó v4.0.0 con
   datos reales de "3000 PPTK": modo Etiquetas compartidas quedaba
@@ -1480,7 +1516,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v4.0.1</div>
+    <div class="caja-version">v4.1.0</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -1537,7 +1573,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v4.0.1</span>
+    <span class="hdr-version">v4.1.0</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
@@ -1618,7 +1654,7 @@ input { font-family: inherit; }
 <div id="pantalla-mapa">
   <header id="mapa-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v4.0.1</span>
+    <span class="hdr-version">v4.1.0</span>
     <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
   </header>
@@ -1646,7 +1682,7 @@ input { font-family: inherit; }
 <div id="pantalla-grafo">
   <header id="grafo-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v4.0.1</span>
+    <span class="hdr-version">v4.1.0</span>
     <span class="hdr-obra-nombre" id="grafo-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeGrafo()">← Buscador</button>
   </header>
@@ -1692,7 +1728,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v4.0.1</span>
+    <span class="hdr-version">v4.1.0</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -2640,7 +2676,8 @@ function mapaResetVista() {
 // backend (obtenerGrafoObra_) ya las descarta al armar los edges.
 const GRAFO_RADIO_BASE = 9;     // radio de un nodo sin conexiones
 const GRAFO_RADIO_ESCALA = 6;   // multiplica sqrt(conexiones) — no lineal, para que un hub no tape el resto
-const GRAFO_COLOR_POR_TIPO = { etiquetas: '#d97706', referencias: '#0369a1' }; // ambar / celeste (paleta ya usada en Mapa Documental)
+const GRAFO_COLOR_POR_TIPO = { etiquetas: '#d97706', referencias: '#0369a1' }; // ambar / celeste (paleta ya usada en Mapa Documental) — color de los nodos-DOCUMENTO en cada modo
+const GRAFO_COLOR_NODO_ETIQUETA = '#7c3aed'; // v4.1.0 — violeta, para diferenciar los nodos-ETIQUETA (hub) de los nodos-documento en el grafo bipartito
 
 let grafoSvg = null, grafoZoomG = null, grafoZoomBehavior = null, grafoSimulation = null;
 let grafoNodos = [], grafoEdges = [], grafoTipoActual = 'etiquetas', grafoNodoSeleccionadoId = null;
@@ -2671,6 +2708,7 @@ async function cargarGrafo() {
   const svgEl = document.getElementById('grafo-svg');
   const vacioMsg = document.getElementById('grafo-vacio-msg');
   if (grafoSimulation) { grafoSimulation.stop(); grafoSimulation = null; }
+  grafoNodosSimActual = [];
   vacioMsg.style.display = 'none';
   svgEl.style.display = 'none';
   spinnerWrap.style.display = 'flex';
@@ -2706,8 +2744,7 @@ function inicializarGrafoD3() {
   // d3.forceLink necesita objetos, no solo ids, en source/target — se
   // clonan los edges acá para no mutar r.edges guardado en grafoEdges.
   const nodosSim = grafoNodos.map(function (n) { return Object.assign({}, n); });
-  const nodosPorId = {};
-  nodosSim.forEach(function (n) { nodosPorId[n.id] = n; n.__radio = GRAFO_RADIO_BASE + GRAFO_RADIO_ESCALA * Math.sqrt(n.conexiones || 0); });
+  nodosSim.forEach(function (n) { n.__radio = GRAFO_RADIO_BASE + GRAFO_RADIO_ESCALA * Math.sqrt(n.conexiones || 0); });
   grafoNodosSimActual = nodosSim;
   const edgesSim = grafoEdges.map(function (e) { return { origen: e.origen, destino: e.destino, source: e.origen, target: e.destino, tipo: e.tipo, etiquetas: e.etiquetas, codigos: e.codigos }; });
 
@@ -2715,9 +2752,27 @@ function inicializarGrafoD3() {
   grafoZoomG = grafoSvg.append('g').attr('class', 'grafo-zoom-g');
   const gLinks = grafoZoomG.append('g').attr('class', 'grafo-links');
   const gNodes = grafoZoomG.append('g').attr('class', 'grafo-nodes');
+  // v4.1.0 — capa de ETIQUETAS DE TEXTO separada de los círculos, y
+  // agregada DESPUÉS (más adelante en el DOM = más arriba en el
+  // z-order de SVG). Antes el texto vivía adentro del mismo <g> que
+  // su círculo, así que un nodo dibujado más tarde en el mismo nivel
+  // podía taparle el texto a uno anterior (se veía en la captura de
+  // Ale: "GRAL-100-ET-X...02_4.pdf" con un círculo vecino encima de
+  // parte de las letras). Con esta capa aparte, CUALQUIER etiqueta
+  // visible queda siempre por encima de TODOS los círculos.
+  const gLabels = grafoZoomG.append('g').attr('class', 'grafo-labels');
 
   const linkSel = gLinks.selectAll('line.grafo-link').data(edgesSim).enter()
     .append('line').attr('class', 'grafo-link');
+
+  // v4.1.0 — color de nodo por tipo: los nodos-ETIQUETA (solo existen
+  // en modo 'etiquetas', grafo bipartito) usan un color propio
+  // (violeta) para diferenciarse de los nodos-documento del mismo
+  // grafo; en modo 'referencias' todos los nodos son documentos, usan
+  // el color de siempre.
+  function colorDeNodo(d) {
+    return d.tipo === 'etiqueta' ? GRAFO_COLOR_NODO_ETIQUETA : GRAFO_COLOR_POR_TIPO[grafoTipoActual];
+  }
 
   const nodeSel = gNodes.selectAll('g.grafo-nodo').data(nodosSim, function (d) { return d.id; }).enter()
     .append('g').attr('class', 'grafo-nodo')
@@ -2725,23 +2780,26 @@ function inicializarGrafoD3() {
       event.stopPropagation();
       abrirPanelGrafo(d.id);
     })
-    // v4.0.1 — etiquetas de texto ocultas por default (mismo criterio
-    // que Obsidian: con muchos nodos, el texto siempre visible tapa
-    // todo); aparecen al pasar el mouse. El nodo seleccionado
-    // (panel abierto) las mantiene visibles vía la clase
-    // .seleccionado, ver abrirPanelGrafo/cerrarPanelGrafo.
-    .on('mouseenter', function (event, d) { d3.select(this).select('text.grafo-nodo-texto').classed('visible', true); })
-    .on('mouseleave', function (event, d) { if (d.id !== grafoNodoSeleccionadoId) d3.select(this).select('text.grafo-nodo-texto').classed('visible', false); });
+    // v4.0.1 — etiquetas de texto ocultas por default para los nodos-
+    // documento (mismo criterio que Obsidian: con muchos nodos, el
+    // texto siempre visible tapa todo); aparecen al pasar el mouse.
+    // v4.1.0 — los nodos-ETIQUETA (hub) quedan con su label SIEMPRE
+    // visible (ver más abajo, .classed('visible', ...) al crearlos) —
+    // son los puntos de orientación del grafo bipartito, tiene
+    // sentido que se lean sin necesidad de hover.
+    .on('mouseenter', function (event, d) { buscarLabelGrafo_(d.id).classed('visible', true); })
+    .on('mouseleave', function (event, d) { if (d.tipo !== 'etiqueta' && d.id !== grafoNodoSeleccionadoId) buscarLabelGrafo_(d.id).classed('visible', false); });
 
   nodeSel.append('title').text(function (d) { return d.nombre; });
   nodeSel.append('circle')
     .attr('class', 'grafo-nodo-circulo')
     .attr('r', function (d) { return d.__radio; })
-    .attr('fill', GRAFO_COLOR_POR_TIPO[grafoTipoActual]);
-  nodeSel.append('text')
+    .attr('fill', colorDeNodo);
+
+  const labelSel = gLabels.selectAll('text.grafo-nodo-texto').data(nodosSim, function (d) { return d.id; }).enter()
+    .append('text')
     .attr('class', 'grafo-nodo-texto')
-    .attr('x', function (d) { return d.__radio + 4; })
-    .attr('y', 3)
+    .classed('visible', function (d) { return d.tipo === 'etiqueta'; })
     .text(function (d) { return d.nombre.length > 28 ? d.nombre.slice(0, 27) + '…' : d.nombre; });
 
   nodeSel.call(d3.drag()
@@ -2763,14 +2821,25 @@ function inicializarGrafoD3() {
   //    se deja que el layout respire libre y se hace zoom-to-fit
   //    real una vez que se asienta (evento 'end' de la simulación) —
   //    ver ajustarZoomAFitGrafo() más abajo.
+  //  v4.1.0 — se suma una fuerza de centrado MUY suave (forceX/Y,
+  //  strength baja): en modo Referencias, con muchos documentos sin
+  //  ninguna conexión, esos nodos podían derivar lejos del clúster
+  //  conectado (se veía en la captura de Ale) y el zoom-to-fit
+  //  terminaba abarcando un área enorme para meterlos a todos,
+  //  "diluyendo" visualmente el clúster que sí importa. La fuerza es
+  //  débil a propósito — no reordena la estructura del grafo, solo
+  //  evita que los sueltos se vayan al horizonte.
   grafoSimulation = d3.forceSimulation(nodosSim)
     .force('link', d3.forceLink(edgesSim).id(function (d) { return d.id; }).distance(90))
     .force('charge', d3.forceManyBody().strength(-450))
     .force('collide', d3.forceCollide().radius(function (d) { return d.__radio + 24; }).iterations(3))
+    .force('x', d3.forceX(ancho / 2).strength(0.025))
+    .force('y', d3.forceY(alto / 2).strength(0.025))
     .on('tick', function () {
       linkSel.attr('x1', function (d) { return d.source.x; }).attr('y1', function (d) { return d.source.y; })
         .attr('x2', function (d) { return d.target.x; }).attr('y2', function (d) { return d.target.y; });
       nodeSel.attr('transform', function (d) { return 'translate(' + d.x + ',' + d.y + ')'; });
+      labelSel.attr('x', function (d) { return d.x + d.__radio + 4; }).attr('y', function (d) { return d.y + 3; });
     })
     .on('end', function () { ajustarZoomAFitGrafo(nodosSim); });
 
@@ -2780,6 +2849,11 @@ function inicializarGrafoD3() {
     .on('zoom', function (event) { grafoZoomG.attr('transform', event.transform); });
   grafoSvg.call(grafoZoomBehavior);
   grafoSvg.on('click', function () { cerrarPanelGrafo(); });
+}
+
+/** v4.1.0 — helper: encuentra el <text> de la capa gLabels que corresponde a un nodo por id (los círculos y las etiquetas viven en capas SVG separadas desde esta versión, ver inicializarGrafoD3). */
+function buscarLabelGrafo_(nodoId) {
+  return d3.selectAll('.grafo-nodo-texto').filter(function (d) { return d.id === nodoId; });
 }
 
 /**
@@ -2822,20 +2896,27 @@ function ajustarZoomAFitGrafo(nodosSim) {
 
 /**
  * Abre (o actualiza, si ya está abierto) el panel lateral con el
- * detalle de un nodo: Nombre + Carpeta, Etiquetas del documento, y
- * la lista de documentos con los que se conecta + el motivo
- * (etiqueta compartida específica, o código de referencia
- * específico) — agrupado por documento conectado.
+ * detalle de un nodo. El contenido depende del TIPO de nodo (desde
+ * v4.1.0, el grafo de Etiquetas es bipartito — hay 2 tipos):
+ *  - documento: Nombre + Carpeta, Etiquetas propias (si el modo
+ *    activo es Referencias) o la lista de etiquetas conectadas (si
+ *    el modo activo es Etiquetas), y "Se conecta con (N)".
+ *  - etiqueta: solo el nombre de la etiqueta + la lista de
+ *    documentos que la tienen ("Documentos con esta etiqueta (N)").
  */
 function abrirPanelGrafo(nodoId) {
   const nodo = grafoNodos.find(function (n) { return n.id === nodoId; });
   if (!nodo) return;
   grafoNodoSeleccionadoId = nodoId;
+  const esEtiqueta = nodo.tipo === 'etiqueta';
 
   d3.selectAll('.grafo-nodo-circulo').classed('seleccionado', function (d) { return d.id === nodoId; });
   // v4.0.1 — etiqueta de texto oculta por default (ver inicializarGrafoD3);
-  // el nodo seleccionado la mantiene visible mientras el panel está abierto.
-  d3.selectAll('.grafo-nodo-texto').classed('visible', function (d) { return d.id === nodoId; });
+  // el nodo seleccionado la mantiene visible mientras el panel está
+  // abierto. v4.1.0 — los nodos-ETIQUETA quedan SIEMPRE visibles
+  // (son el punto de orientación del grafo bipartito), no se
+  // esconden al seleccionar otro nodo.
+  d3.selectAll('.grafo-nodo-texto').classed('visible', function (d) { return d.id === nodoId || d.tipo === 'etiqueta'; });
 
   const conexionesPorDestino = {};
   grafoEdges.forEach(function (e) {
@@ -2846,18 +2927,20 @@ function abrirPanelGrafo(nodoId) {
     const otro = grafoNodos.find(function (n) { return n.id === otroId; });
     if (!otro) return;
     let motivo;
-    if (e.tipo === 'etiqueta') motivo = 'Etiqueta' + (e.etiquetas.length > 1 ? 's' : '') + ' compartida' + (e.etiquetas.length > 1 ? 's' : '') + ': ' + e.etiquetas.join(', ');
-    else motivo = (e.origen === nodoId ? 'Hace referencia a este documento' : 'Este documento hace referencia') + ' (' + e.codigos.join(', ') + ')';
+    if (e.tipo === 'etiqueta') {
+      // v4.1.0 — bipartito: el motivo ya está implícito en quién es
+      // el "otro" nodo (una etiqueta, o el documento que la tiene) —
+      // no hace falta más detalle.
+      motivo = esEtiqueta ? 'Tiene esta etiqueta' : 'Etiqueta compartida';
+    } else {
+      motivo = (e.origen === nodoId ? 'Hace referencia a este documento' : 'Este documento hace referencia') + ' (' + e.codigos.join(', ') + ')';
+    }
     conexionesPorDestino[otroId] = { nodo: otro, motivo: motivo };
   });
 
   const listaConexiones = Object.keys(conexionesPorDestino)
     .map(function (id) { return conexionesPorDestino[id]; })
     .sort(function (a, b) { return a.nodo.nombre.localeCompare(b.nodo.nombre, 'es'); });
-
-  const etiquetasHtml = (nodo.etiquetas && nodo.etiquetas.length)
-    ? nodo.etiquetas.map(function (e) { return '<span class="resultado-etiqueta-chip">' + escapeHtml(e) + '</span>'; }).join('')
-    : '<span class="grafo-panel-vacio">Sin etiquetas.</span>';
 
   const conexionesHtml = listaConexiones.length
     ? listaConexiones.map(function (c) {
@@ -2868,14 +2951,24 @@ function abrirPanelGrafo(nodoId) {
     }).join('')
     : '<div class="grafo-panel-vacio">Sin conexiones de este tipo.</div>';
 
-  document.getElementById('grafo-panel-body').innerHTML =
-    '<div class="grafo-panel-nombre">' + escapeHtml(nodo.nombre) + '</div>'
-    + '<div class="grafo-panel-carpeta">' + escapeHtml(nodo.carpeta || '—') + '</div>'
-    + '<div class="grafo-panel-seccion-titulo">Etiquetas</div>'
-    + '<div class="grafo-panel-etiquetas">' + etiquetasHtml + '</div>'
-    + '<div class="grafo-panel-seccion-titulo">Se conecta con (' + listaConexiones.length + ')</div>'
-    + conexionesHtml;
+  let html;
+  if (esEtiqueta) {
+    html = '<div class="grafo-panel-nombre">Etiqueta: ' + escapeHtml(nodo.nombre) + '</div>'
+      + '<div class="grafo-panel-seccion-titulo">Documentos con esta etiqueta (' + listaConexiones.length + ')</div>'
+      + conexionesHtml;
+  } else {
+    const etiquetasHtml = (nodo.etiquetas && nodo.etiquetas.length)
+      ? nodo.etiquetas.map(function (e) { return '<span class="resultado-etiqueta-chip">' + escapeHtml(e) + '</span>'; }).join('')
+      : '<span class="grafo-panel-vacio">Sin etiquetas.</span>';
+    html = '<div class="grafo-panel-nombre">' + escapeHtml(nodo.nombre) + '</div>'
+      + '<div class="grafo-panel-carpeta">' + escapeHtml(nodo.carpeta || '—') + '</div>'
+      + '<div class="grafo-panel-seccion-titulo">Etiquetas</div>'
+      + '<div class="grafo-panel-etiquetas">' + etiquetasHtml + '</div>'
+      + '<div class="grafo-panel-seccion-titulo">Se conecta con (' + listaConexiones.length + ')</div>'
+      + conexionesHtml;
+  }
 
+  document.getElementById('grafo-panel-body').innerHTML = html;
   document.getElementById('grafo-panel').classList.add('visible');
 }
 
@@ -2884,7 +2977,9 @@ function cerrarPanelGrafo() {
   document.getElementById('grafo-panel').classList.remove('visible');
   document.getElementById('grafo-panel-body').innerHTML = '<div class="grafo-panel-vacio">Hacé click en un nodo para ver su detalle.</div>';
   d3.selectAll('.grafo-nodo-circulo').classed('seleccionado', false);
-  d3.selectAll('.grafo-nodo-texto').classed('visible', false);
+  // v4.1.0 — los nodos-ETIQUETA quedan visibles siempre, incluso sin
+  // selección (ver inicializarGrafoD3); solo se ocultan las de tipo documento.
+  d3.selectAll('.grafo-nodo-texto').classed('visible', function (d) { return d.tipo === 'etiqueta'; });
 }
 
 function grafoZoom(factor) {
