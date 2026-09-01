@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v4.0.0</title>
+<title>BDC — Buscador Documental de Contrato v4.0.1</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,7 +17,33 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
-  index_bdc_v4_0_0.html — v4.0.0 (02-sep-2026)
+  index_bdc_v4_0_1.html — v4.0.1 (02-sep-2026)
+
+  QUÉ CAMBIÓ EN v4.0.1 (respecto a v4.0.0) — Ale probó v4.0.0 con
+  datos reales de "3000 PPTK": modo Etiquetas compartidas quedaba
+  apelmazado en un bloque triangular cortado por el borde del
+  lienzo (grafo casi completo — ~90 documentos con etiquetas muy
+  compartidas entre sí — la repulsión y el translate fijo de v4.0.0
+  no alcanzaban para un caso tan denso). Modo Referencias entre
+  documentos vacío del todo — ver bdc_gas_v4_0_1.gs, bug de
+  CodigoDocumento con sufijo de revisión "_X" pegado, ya documentado
+  como pendiente desde Entrega 2.
+   - Repulsión (forceManyBody) más fuerte (-230 -> -450); forceLink
+     sin strength fija (se usa el default adaptivo de d3, que ya
+     debilita el tirón en nodos con muchas conexiones); forceCollide
+     con 3 iteraciones (antes 1) para menos solapamiento en grafos
+     densos.
+   - Sin forceCenter fijo: se deja que el layout respire libre y se
+     hace zoom-to-fit real (ajustarZoomAFitGrafo) cuando la
+     simulación termina de asentarse (evento 'end') — calcula el
+     bounding box real de los nodos ya acomodados y ajusta zoom+pan
+     para que entre TODO en el viewport. El botón "Reset" ahora
+     vuelve a este encuadre (antes volvía a un translate fijo pensado
+     para el árbol del Mapa, no para un grafo).
+   - Etiquetas de texto de los nodos OCULTAS por default (antes
+     siempre visibles, saturaban el lienzo con muchos nodos) —
+     aparecen en hover, y el nodo seleccionado (panel abierto) las
+     mantiene visibles. Mismo criterio que el Graph View de Obsidian.
 
   QUÉ CAMBIÓ EN v4.0.0 (respecto a v3.2.0) — Entrega 3: Grafo estilo
   Obsidian. Salto de versión mayor porque suma una vista nueva de
@@ -1143,7 +1169,10 @@ input { font-family: inherit; }
 .grafo-nodo-circulo { cursor: pointer; stroke: rgba(255,255,255,.5); stroke-width: 1.5px; transition: stroke-width .1s; }
 .grafo-nodo-circulo:hover { stroke-width: 3px; }
 .grafo-nodo-circulo.seleccionado { stroke: var(--text); stroke-width: 3px; }
-.grafo-nodo-texto { font-family: 'DM Sans', sans-serif; font-size: 10.5px; fill: var(--text); pointer-events: none; }
+/* v4.0.1 — oculta por default (ver inicializarGrafoD3): visible solo
+   en hover o si el nodo está seleccionado (panel abierto). */
+.grafo-nodo-texto { font-family: 'DM Sans', sans-serif; font-size: 10.5px; fill: var(--text); pointer-events: none; opacity: 0; transition: opacity .12s; }
+.grafo-nodo-texto.visible { opacity: 1; }
 
 /* ─────────────────────────────────────────────────
    PANTALLA DE CARGA (v2.1.0, solo admin) — 2 columnas
@@ -1451,7 +1480,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v4.0.0</div>
+    <div class="caja-version">v4.0.1</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -1508,7 +1537,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v4.0.0</span>
+    <span class="hdr-version">v4.0.1</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
@@ -1589,7 +1618,7 @@ input { font-family: inherit; }
 <div id="pantalla-mapa">
   <header id="mapa-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v4.0.0</span>
+    <span class="hdr-version">v4.0.1</span>
     <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
   </header>
@@ -1617,7 +1646,7 @@ input { font-family: inherit; }
 <div id="pantalla-grafo">
   <header id="grafo-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v4.0.0</span>
+    <span class="hdr-version">v4.0.1</span>
     <span class="hdr-obra-nombre" id="grafo-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeGrafo()">← Buscador</button>
   </header>
@@ -1663,7 +1692,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v4.0.0</span>
+    <span class="hdr-version">v4.0.1</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -2615,6 +2644,7 @@ const GRAFO_COLOR_POR_TIPO = { etiquetas: '#d97706', referencias: '#0369a1' }; /
 
 let grafoSvg = null, grafoZoomG = null, grafoZoomBehavior = null, grafoSimulation = null;
 let grafoNodos = [], grafoEdges = [], grafoTipoActual = 'etiquetas', grafoNodoSeleccionadoId = null;
+let grafoNodosSimActual = []; // v4.0.1 — última corrida de la simulación, para poder re-encuadrar (Reset) sin volver a pedir datos
 
 function mostrarPantallaGrafo() {
   mostrarPantalla('grafo-visible');
@@ -2678,6 +2708,7 @@ function inicializarGrafoD3() {
   const nodosSim = grafoNodos.map(function (n) { return Object.assign({}, n); });
   const nodosPorId = {};
   nodosSim.forEach(function (n) { nodosPorId[n.id] = n; n.__radio = GRAFO_RADIO_BASE + GRAFO_RADIO_ESCALA * Math.sqrt(n.conexiones || 0); });
+  grafoNodosSimActual = nodosSim;
   const edgesSim = grafoEdges.map(function (e) { return { origen: e.origen, destino: e.destino, source: e.origen, target: e.destino, tipo: e.tipo, etiquetas: e.etiquetas, codigos: e.codigos }; });
 
   grafoSvg = d3.select(svgEl);
@@ -2693,7 +2724,14 @@ function inicializarGrafoD3() {
     .on('click', function (event, d) {
       event.stopPropagation();
       abrirPanelGrafo(d.id);
-    });
+    })
+    // v4.0.1 — etiquetas de texto ocultas por default (mismo criterio
+    // que Obsidian: con muchos nodos, el texto siempre visible tapa
+    // todo); aparecen al pasar el mouse. El nodo seleccionado
+    // (panel abierto) las mantiene visibles vía la clase
+    // .seleccionado, ver abrirPanelGrafo/cerrarPanelGrafo.
+    .on('mouseenter', function (event, d) { d3.select(this).select('text.grafo-nodo-texto').classed('visible', true); })
+    .on('mouseleave', function (event, d) { if (d.id !== grafoNodoSeleccionadoId) d3.select(this).select('text.grafo-nodo-texto').classed('visible', false); });
 
   nodeSel.append('title').text(function (d) { return d.nombre; });
   nodeSel.append('circle')
@@ -2711,23 +2749,75 @@ function inicializarGrafoD3() {
     .on('drag', function (event, d) { d.fx = event.x; d.fy = event.y; })
     .on('end', function (event, d) { if (!event.active) grafoSimulation.alphaTarget(0); d.fx = null; d.fy = null; }));
 
+  // v4.0.1 — Ale probó v4.0.0 con ~90 documentos muy interconectados
+  // por Etiquetas (grafo casi completo) y el layout colapsó en un
+  // bloque apretado, cortado por el borde del lienzo. Reafinado:
+  //  - Repulsión bastante más fuerte (-230 -> -450) y forceLink sin
+  //    strength fija (se deja el default adaptivo de d3, que ya
+  //    debilita el tirón de los nodos con muchas conexiones — la
+  //    strength fija de v4.0.0 iba en contra de eso).
+  //  - forceCollide con más iteraciones (3) para que no queden nodos
+  //    solapados en grafos densos.
+  //  - Sin forceCenter: en vez de atar el layout a un punto fijo
+  //    (que no evita el amontonamiento, solo traslada el conjunto),
+  //    se deja que el layout respire libre y se hace zoom-to-fit
+  //    real una vez que se asienta (evento 'end' de la simulación) —
+  //    ver ajustarZoomAFitGrafo() más abajo.
   grafoSimulation = d3.forceSimulation(nodosSim)
-    .force('link', d3.forceLink(edgesSim).id(function (d) { return d.id; }).distance(85).strength(0.35))
-    .force('charge', d3.forceManyBody().strength(-230))
-    .force('collide', d3.forceCollide().radius(function (d) { return d.__radio + 22; }))
-    .force('center', d3.forceCenter(ancho / 2, alto / 2))
+    .force('link', d3.forceLink(edgesSim).id(function (d) { return d.id; }).distance(90))
+    .force('charge', d3.forceManyBody().strength(-450))
+    .force('collide', d3.forceCollide().radius(function (d) { return d.__radio + 24; }).iterations(3))
     .on('tick', function () {
       linkSel.attr('x1', function (d) { return d.source.x; }).attr('y1', function (d) { return d.source.y; })
         .attr('x2', function (d) { return d.target.x; }).attr('y2', function (d) { return d.target.y; });
       nodeSel.attr('transform', function (d) { return 'translate(' + d.x + ',' + d.y + ')'; });
-    });
+    })
+    .on('end', function () { ajustarZoomAFitGrafo(nodosSim); });
 
   grafoZoomBehavior = d3.zoom()
-    .scaleExtent([0.3, 3])
+    .scaleExtent([0.15, 3])
     .filter(function (event) { return !event.ctrlKey && !event.button || event.type === 'wheel'; })
     .on('zoom', function (event) { grafoZoomG.attr('transform', event.transform); });
   grafoSvg.call(grafoZoomBehavior);
   grafoSvg.on('click', function () { cerrarPanelGrafo(); });
+}
+
+/**
+ * v4.0.1 — zoom-to-fit real: una vez que d3-force termina de
+ * acomodar el layout (evento 'end', alpha por debajo del umbral),
+ * calcula el bounding box efectivo de los nodos ya asentados
+ * (incluido su radio) y ajusta zoom+pan para que entre TODO dentro
+ * del viewport, con un margen. Reemplaza el translate fijo de
+ * v4.0.0 (pensado para el árbol del Mapa Documental, no para un
+ * grafo cuya forma final depende de los datos) — antes la mitad de
+ * abajo quedaba fuera de cámara sin aviso.
+ */
+function ajustarZoomAFitGrafo(nodosSim) {
+  if (!nodosSim.length || !grafoSvg || !grafoZoomBehavior) return;
+  const viewport = document.getElementById('grafo-viewport');
+  const ancho = viewport.clientWidth || 800;
+  const alto = viewport.clientHeight || 600;
+
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  nodosSim.forEach(function (d) {
+    minX = Math.min(minX, d.x - d.__radio);
+    maxX = Math.max(maxX, d.x + d.__radio);
+    minY = Math.min(minY, d.y - d.__radio);
+    maxY = Math.max(maxY, d.y + d.__radio);
+  });
+  const MARGEN = 60;
+  const anchoContenido = Math.max(1, maxX - minX + MARGEN * 2);
+  const altoContenido = Math.max(1, maxY - minY + MARGEN * 2);
+  const escala = Math.min(2.5, Math.min(ancho / anchoContenido, alto / altoContenido));
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+
+  const transform = d3.zoomIdentity
+    .translate(ancho / 2, alto / 2)
+    .scale(escala)
+    .translate(-cx, -cy);
+
+  grafoSvg.transition().duration(400).call(grafoZoomBehavior.transform, transform);
 }
 
 /**
@@ -2743,6 +2833,9 @@ function abrirPanelGrafo(nodoId) {
   grafoNodoSeleccionadoId = nodoId;
 
   d3.selectAll('.grafo-nodo-circulo').classed('seleccionado', function (d) { return d.id === nodoId; });
+  // v4.0.1 — etiqueta de texto oculta por default (ver inicializarGrafoD3);
+  // el nodo seleccionado la mantiene visible mientras el panel está abierto.
+  d3.selectAll('.grafo-nodo-texto').classed('visible', function (d) { return d.id === nodoId; });
 
   const conexionesPorDestino = {};
   grafoEdges.forEach(function (e) {
@@ -2791,6 +2884,7 @@ function cerrarPanelGrafo() {
   document.getElementById('grafo-panel').classList.remove('visible');
   document.getElementById('grafo-panel-body').innerHTML = '<div class="grafo-panel-vacio">Hacé click en un nodo para ver su detalle.</div>';
   d3.selectAll('.grafo-nodo-circulo').classed('seleccionado', false);
+  d3.selectAll('.grafo-nodo-texto').classed('visible', false);
 }
 
 function grafoZoom(factor) {
@@ -2800,7 +2894,11 @@ function grafoZoom(factor) {
 
 function grafoResetVista() {
   if (!grafoSvg || !grafoZoomBehavior) return;
-  grafoSvg.transition().duration(200).call(grafoZoomBehavior.transform, d3.zoomIdentity);
+  // v4.0.1 — "Reset" vuelve a encuadrar todo el grafo (zoom-to-fit),
+  // no a un translate fijo — mismo cálculo que al terminar de
+  // asentarse la simulación (ajustarZoomAFitGrafo).
+  if (grafoNodosSimActual.length) ajustarZoomAFitGrafo(grafoNodosSimActual);
+  else grafoSvg.transition().duration(200).call(grafoZoomBehavior.transform, d3.zoomIdentity);
 }
 
 // ── RESIZER (facetas) ───────────────────────────────────────
