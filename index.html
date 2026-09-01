@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v4.2.0</title>
+<title>BDC — Buscador Documental de Contrato v5.0.0</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,7 +17,32 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
-  index_bdc_v4_2_0.html — v4.2.0 (02-sep-2026)
+  index_bdc_v5_0_0.html — v5.0.0 (02-sep-2026)
+
+  QUÉ CAMBIÓ EN v5.0.0 (respecto a v4.2.0) — Dashboard de la obra,
+  nueva vista (salto de versión mayor, mismo criterio que Mapa
+  Documental y Grafo). Botón "Dashboard" en el header del buscador,
+  después de "Conexiones" (pedido explícito de Ale). Backend:
+  bdc_gas_v5_0_0.gs — ver ese changelog para el detalle de
+  obtenerDashboardObra_.
+   - Nueva pantalla #pantalla-dashboard: fila de KPIs (documentos
+     indexados/fallidos/vacíos + tasa de éxito, % con código
+     detectado, % con etiqueta, % con al menos 1 conexión, cantidad
+     de referencias "crudas") + grilla de paneles con gráficos D3
+     (mismo bundle ya cargado para Mapa/Grafo, sin librerías nuevas):
+     línea+área para Carga en el tiempo y Actividad de búsquedas,
+     barras horizontales para Top Etiquetas y Top Carpetas, donut
+     con leyenda para Familias de código, y 3 listas simples
+     (Documentos con más intentos fallidos, Documentos más
+     conectados por Referencias, Términos más buscados).
+   - 3 funciones de gráfico reutilizables (dibujarLineChart,
+     dibujarBarrasHorizontales, dibujarDonut) — genéricas, reciben
+     el id del <svg> y los datos, sin acoplarse a un panel puntual.
+   - Vista de solo lectura, sin drill-down por ahora (ej. click en un
+     hub para abrir el Grafo en ese nodo) — queda anotado como
+     mejora futura, fuera del alcance de esta primera entrega.
+   - Visible a TODOS los usuarios (vista de consulta, mismo criterio
+     que Mapa/Grafo, no requiere admin).
 
   QUÉ CAMBIÓ EN v4.2.0 (respecto a v4.1.1) — 2 entregas juntas
   (bug chico + funcionalidad), modo quirúrgico. Backend SIN CAMBIOS
@@ -1256,6 +1281,65 @@ input { font-family: inherit; }
 .grafo-nodo-texto.visible { opacity: 1; }
 
 /* ─────────────────────────────────────────────────
+   PANTALLA — DASHBOARD (v5.0.0, consulta)
+   Grilla de KPIs + paneles con gráficos D3 (mismo bundle ya cargado
+   para Mapa Documental/Grafo, sin dependencias nuevas).
+───────────────────────────────────────────────── */
+#pantalla-dashboard { display: none; flex-direction: column; height: 100vh; }
+#dashboard-header { height: var(--header-h); background: var(--accent2); display: flex; align-items: center; padding: 0 18px; gap: 12px; flex-shrink: 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+#dashboard-body { flex: 1; overflow-y: auto; padding: 20px; position: relative; }
+#dashboard-spinner-wrap { display: flex; align-items: center; justify-content: center; padding: 80px 0; }
+
+#dashboard-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.dash-kpi {
+  background   : var(--surface);
+  border-radius: var(--radius);
+  box-shadow   : 0 1px 4px rgba(0,0,0,.07), 0 0 0 .5px rgba(0,0,0,.06);
+  padding      : 16px 18px;
+}
+.dash-kpi-valor { font-family: 'Bebas Neue', sans-serif; font-size: 2.1rem; line-height: 1; color: var(--accent2); }
+.dash-kpi-valor.acento { color: var(--accent); }
+.dash-kpi-label { font-size: .74rem; color: var(--muted); margin-top: 4px; }
+
+#dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+.dash-panel {
+  background   : var(--surface);
+  border-radius: var(--radius);
+  box-shadow   : 0 1px 4px rgba(0,0,0,.07), 0 0 0 .5px rgba(0,0,0,.06);
+  padding      : 16px 18px 18px;
+  min-height   : 220px;
+  display      : flex;
+  flex-direction: column;
+}
+.dash-panel-ancho { grid-column: 1 / -1; }
+.dash-panel-titulo { font-size: .76rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 10px; }
+.dash-chart { width: 100%; flex: 1; min-height: 180px; }
+
+.dash-lista { flex: 1; overflow-y: auto; }
+.dash-lista-vacio { font-size: .8rem; color: var(--muted); padding: 8px 0; }
+.dash-lista-item {
+  display        : flex;
+  justify-content: space-between;
+  align-items    : baseline;
+  gap            : 10px;
+  padding        : 8px 0;
+  border-bottom  : 1px solid var(--border);
+  font-size      : .82rem;
+}
+.dash-lista-item:last-child { border-bottom: none; }
+.dash-lista-item-nombre { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-lista-item-sub { font-size: .7rem; color: var(--muted); }
+.dash-lista-item-valor { font-weight: 700; color: var(--accent2); flex-shrink: 0; }
+
+/* Ejes/series de los gráficos D3 */
+.dash-eje path, .dash-eje line { stroke: var(--border); }
+.dash-eje text { font-family: 'DM Sans', sans-serif; font-size: 10px; fill: var(--muted); }
+.dash-linea { fill: none; stroke: var(--accent2); stroke-width: 2px; }
+.dash-area { fill: var(--accent2); opacity: .08; }
+.dash-barra { fill: var(--accent); }
+.dash-barra-texto { font-family: 'DM Sans', sans-serif; font-size: 10.5px; fill: var(--text); }
+
+/* ─────────────────────────────────────────────────
    PANTALLA DE CARGA (v2.1.0, solo admin) — 2 columnas
 ───────────────────────────────────────────────── */
 #pantalla-carga { display: none; flex-direction: column; height: 100vh; }
@@ -1561,7 +1645,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v4.2.0</div>
+    <div class="caja-version">v5.0.0</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -1618,7 +1702,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v4.2.0</span>
+    <span class="hdr-version">v5.0.0</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
@@ -1628,6 +1712,9 @@ input { font-family: inherit; }
     <!-- v4.0.0 — Grafo (Entrega 3): de consulta, visible para todos
          los usuarios de la obra, mismo criterio que "Mapa". -->
     <button class="hdr-btn-cambiar-obra" id="btn-abrir-grafo" onclick="mostrarPantallaGrafo()">Conexiones</button>
+    <!-- v5.0.0 — Dashboard: de consulta, visible para todos los
+         usuarios, mismo criterio que "Mapa"/"Conexiones". -->
+    <button class="hdr-btn-cambiar-obra" id="btn-abrir-dashboard" onclick="mostrarPantallaDashboard()">Dashboard</button>
     <button class="hdr-btn-cambiar-obra" id="btn-cargar-datos" style="display:none" onclick="mostrarPantallaCarga()">Cargar documentos</button>
     <span class="hdr-sep"></span>
     <span class="hdr-email" id="hdr-email"></span>
@@ -1699,7 +1786,7 @@ input { font-family: inherit; }
 <div id="pantalla-mapa">
   <header id="mapa-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v4.2.0</span>
+    <span class="hdr-version">v5.0.0</span>
     <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
   </header>
@@ -1727,7 +1814,7 @@ input { font-family: inherit; }
 <div id="pantalla-grafo">
   <header id="grafo-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v4.2.0</span>
+    <span class="hdr-version">v5.0.0</span>
     <span class="hdr-obra-nombre" id="grafo-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeGrafo()">← Buscador</button>
   </header>
@@ -1769,11 +1856,66 @@ input { font-family: inherit; }
   </div>
 </div>
 
+<!-- ═══════════════ PANTALLA — DASHBOARD (v5.0.0, consulta) ═══════════════ -->
+<div id="pantalla-dashboard">
+  <header id="dashboard-header">
+    <span class="hdr-logo">BDC</span>
+    <span class="hdr-version">v5.0.0</span>
+    <span class="hdr-obra-nombre" id="dashboard-hdr-obra-nombre"></span>
+    <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeDashboard()">← Buscador</button>
+  </header>
+  <div id="dashboard-body">
+    <div id="dashboard-spinner-wrap">
+      <div>
+        <div class="spinner"></div>
+        <div class="mapa-spinner-label">Armando el dashboard...</div>
+      </div>
+    </div>
+    <div id="dashboard-contenido" style="display:none">
+      <div id="dashboard-kpis"></div>
+      <div id="dashboard-grid">
+        <div class="dash-panel dash-panel-ancho">
+          <div class="dash-panel-titulo">Carga de documentos en el tiempo</div>
+          <svg class="dash-chart" id="dash-chart-carga" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+        <div class="dash-panel">
+          <div class="dash-panel-titulo">Top Etiquetas</div>
+          <svg class="dash-chart" id="dash-chart-etiquetas" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+        <div class="dash-panel">
+          <div class="dash-panel-titulo">Distribución por Carpeta</div>
+          <svg class="dash-chart" id="dash-chart-carpetas" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+        <div class="dash-panel">
+          <div class="dash-panel-titulo">Familias de código</div>
+          <svg class="dash-chart" id="dash-chart-familias" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+        <div class="dash-panel">
+          <div class="dash-panel-titulo">Documentos con más intentos fallidos</div>
+          <div class="dash-lista" id="dash-lista-fallidos"></div>
+        </div>
+        <div class="dash-panel">
+          <div class="dash-panel-titulo">Documentos más conectados (Referencias)</div>
+          <div class="dash-lista" id="dash-lista-hubs"></div>
+        </div>
+        <div class="dash-panel">
+          <div class="dash-panel-titulo">Términos más buscados</div>
+          <div class="dash-lista" id="dash-lista-terminos"></div>
+        </div>
+        <div class="dash-panel dash-panel-ancho">
+          <div class="dash-panel-titulo">Actividad de búsquedas en el tiempo</div>
+          <svg class="dash-chart" id="dash-chart-busquedas" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════ PANTALLA — CARGA DE DOCUMENTOS (solo admin, v2.0.0) ═══════════════ -->
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v4.2.0</span>
+    <span class="hdr-version">v5.0.0</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -3159,6 +3301,213 @@ function grafoResetVista() {
   else grafoSvg.transition().duration(200).call(grafoZoomBehavior.transform, d3.zoomIdentity);
 }
 
+// ── VISTA DASHBOARD (v5.0.0) ──────────────────────────────────
+// KPIs + gráficos con D3 (mismo bundle ya cargado para Mapa
+// Documental/Grafo, sin librerías nuevas). Vista de consulta, de
+// solo lectura, sin drill-down por ahora (queda anotado como mejora
+// futura — click en un hub para abrir el Grafo en ese nodo, etc.).
+
+function mostrarPantallaDashboard() {
+  mostrarPantalla('dashboard-visible');
+  document.getElementById('dashboard-hdr-obra-nombre').textContent = obraActual.nombreObra;
+  cargarDashboard();
+}
+
+function volverABuscadorDesdeDashboard() {
+  mostrarPantalla('app-visible');
+}
+
+async function cargarDashboard() {
+  const spinnerWrap = document.getElementById('dashboard-spinner-wrap');
+  const contenido = document.getElementById('dashboard-contenido');
+  spinnerWrap.style.display = 'flex';
+  spinnerWrap.innerHTML = '<div><div class="spinner"></div><div class="mapa-spinner-label">Armando el dashboard...</div></div>';
+  contenido.style.display = 'none';
+  try {
+    const r = await llamarBackend('obtenerDashboardObra', { obraId: obraActual.obraId, email: emailActual });
+    if (!r.ok) {
+      spinnerWrap.innerHTML = '<div class="mapa-spinner-label">' + escapeHtml(r.error || 'No se pudo armar el dashboard.') + '</div>';
+      return;
+    }
+    spinnerWrap.style.display = 'none';
+    contenido.style.display = 'block';
+    renderDashboard(r);
+  } catch (err) {
+    spinnerWrap.innerHTML = '<div class="mapa-spinner-label">Sin conexión. Revisá tu internet e intentá de nuevo.</div>';
+  }
+}
+
+function renderDashboard(d) {
+  renderDashboardKpis(d.kpis);
+  dibujarLineChart('dash-chart-carga', d.cargaPorDia, 'documento' + (d.kpis.totalDocumentos === 1 ? '' : 's'));
+  dibujarBarrasHorizontales('dash-chart-etiquetas', d.topEtiquetas);
+  dibujarBarrasHorizontales('dash-chart-carpetas', d.topCarpetas, true);
+  dibujarDonut('dash-chart-familias', d.familias);
+  renderDashboardLista('dash-lista-fallidos', d.topFallidos, function (it) {
+    return { nombre: it.documento, sub: it.ultimoError, valor: it.cantidadIntentos + ' intento' + (it.cantidadIntentos === 1 ? '' : 's') };
+  }, 'Sin documentos fallidos.');
+  renderDashboardLista('dash-lista-hubs', d.topHubsReferencias, function (it) {
+    return { nombre: it.documento, sub: it.carpeta, valor: it.conexiones + ' conexión' + (it.conexiones === 1 ? '' : 'es') };
+  }, 'Sin conexiones detectadas todavía.');
+  renderDashboardLista('dash-lista-terminos', d.busquedas.topTerminos, function (it) {
+    return { nombre: it.nombre, sub: '', valor: String(it.cantidad) };
+  }, 'Todavía no hay búsquedas registradas.');
+  dibujarLineChart('dash-chart-busquedas', d.busquedas.actividadPorDia, 'búsqueda' + (d.busquedas.total === 1 ? '' : 's'));
+}
+
+function renderDashboardKpis(kpis) {
+  const items = [
+    { valor: kpis.totalDocumentos, label: 'Documentos indexados', acento: true },
+    { valor: kpis.totalFallidos, label: 'Documentos fallidos' },
+    { valor: kpis.totalVacios, label: 'Documentos vacíos' },
+    { valor: kpis.tasaExito + '%', label: 'Tasa de éxito de carga' },
+    { valor: kpis.pctConCodigo + '%', label: 'Con código detectado' },
+    { valor: kpis.pctConEtiqueta + '%', label: 'Con al menos 1 etiqueta' },
+    { valor: kpis.pctConConexion + '%', label: 'Con al menos 1 conexión' },
+    { valor: kpis.referenciasCrudas, label: 'Referencias sin documento indexado' }
+  ];
+  document.getElementById('dashboard-kpis').innerHTML = items.map(function (it) {
+    return '<div class="dash-kpi"><div class="dash-kpi-valor' + (it.acento ? ' acento' : '') + '">' + escapeHtml(String(it.valor)) + '</div><div class="dash-kpi-label">' + escapeHtml(it.label) + '</div></div>';
+  }).join('');
+}
+
+function renderDashboardLista(contId, items, mapear, mensajeVacio) {
+  const cont = document.getElementById(contId);
+  if (!items || !items.length) {
+    cont.innerHTML = '<div class="dash-lista-vacio">' + escapeHtml(mensajeVacio) + '</div>';
+    return;
+  }
+  cont.innerHTML = items.map(function (raw) {
+    const it = mapear(raw);
+    return '<div class="dash-lista-item">'
+      + '<div><div class="dash-lista-item-nombre" title="' + escapeHtml(it.nombre) + '">' + escapeHtml(it.nombre) + '</div>'
+      + (it.sub ? '<div class="dash-lista-item-sub">' + escapeHtml(it.sub) + '</div>' : '') + '</div>'
+      + '<div class="dash-lista-item-valor">' + escapeHtml(it.valor) + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+// ── gráficos D3 reutilizables (line/barras/donut) ─────────────
+const DASH_MARGEN = { top: 10, right: 14, bottom: 26, left: 34 };
+const DASH_COLORES_DONUT = ['#4338ca', '#0369a1', '#15803d', '#d97706', '#7c3aed', '#dc2626'];
+
+function dashDims(svgEl) {
+  const w = svgEl.clientWidth || svgEl.parentElement.clientWidth || 300;
+  const h = svgEl.clientHeight || 200;
+  return { w: w, h: h };
+}
+
+function dibujarLineChart(svgId, datos, etiquetaUnidad) {
+  const svgEl = document.getElementById(svgId);
+  const svg = d3.select(svgEl);
+  svg.selectAll('*').remove();
+  if (!datos || datos.length === 0) {
+    svg.append('text').attr('x', 12).attr('y', 20).attr('class', 'dash-lista-vacio').text('Sin datos todavía.');
+    return;
+  }
+  const { w, h } = dashDims(svgEl);
+  const innerW = Math.max(50, w - DASH_MARGEN.left - DASH_MARGEN.right);
+  const innerH = Math.max(50, h - DASH_MARGEN.top - DASH_MARGEN.bottom);
+  const g = svg.append('g').attr('transform', 'translate(' + DASH_MARGEN.left + ',' + DASH_MARGEN.top + ')');
+
+  const parseFecha = d3.timeParse('%Y-%m-%d');
+  const puntos = datos.map(function (d) { return { fecha: parseFecha(d.fecha), cantidad: d.cantidad }; });
+
+  const x = d3.scaleTime().domain(d3.extent(puntos, function (d) { return d.fecha; })).range([0, innerW]);
+  const y = d3.scaleLinear().domain([0, d3.max(puntos, function (d) { return d.cantidad; }) || 1]).nice().range([innerH, 0]);
+
+  const ejeX = d3.axisBottom(x).ticks(Math.min(6, puntos.length)).tickFormat(d3.timeFormat('%d/%m'));
+  const ejeY = d3.axisLeft(y).ticks(4);
+
+  g.append('g').attr('class', 'dash-eje').attr('transform', 'translate(0,' + innerH + ')').call(ejeX);
+  g.append('g').attr('class', 'dash-eje').call(ejeY);
+
+  const area = d3.area().x(function (d) { return x(d.fecha); }).y0(innerH).y1(function (d) { return y(d.cantidad); });
+  const linea = d3.line().x(function (d) { return x(d.fecha); }).y(function (d) { return y(d.cantidad); });
+
+  g.append('path').datum(puntos).attr('class', 'dash-area').attr('d', area);
+  g.append('path').datum(puntos).attr('class', 'dash-linea').attr('d', linea);
+
+  g.selectAll('circle.dash-punto').data(puntos).enter().append('circle')
+    .attr('class', 'dash-punto').attr('r', 3).attr('fill', 'var(--accent2)')
+    .attr('cx', function (d) { return x(d.fecha); }).attr('cy', function (d) { return y(d.cantidad); })
+    .append('title').text(function (d) { return d.cantidad + ' ' + etiquetaUnidad; });
+}
+
+function dibujarBarrasHorizontales(svgId, datos, esCarpeta) {
+  const svgEl = document.getElementById(svgId);
+  const svg = d3.select(svgEl);
+  svg.selectAll('*').remove();
+  if (!datos || datos.length === 0) {
+    svg.append('text').attr('x', 12).attr('y', 20).attr('class', 'dash-lista-vacio').text('Sin datos todavía.');
+    return;
+  }
+  const { w, h } = dashDims(svgEl);
+  const margenIzq = 130;
+  const margenDer = 34;
+  const innerW = Math.max(40, w - margenIzq - margenDer);
+  const altoBarra = Math.min(22, Math.floor((h - 10) / datos.length) - 6);
+  const paso = altoBarra + 8;
+
+  const x = d3.scaleLinear().domain([0, d3.max(datos, function (d) { return d.cantidad; }) || 1]).range([0, innerW]);
+  const g = svg.append('g').attr('transform', 'translate(' + margenIzq + ',6)');
+
+  const filas = g.selectAll('g.fila').data(datos).enter().append('g')
+    .attr('class', 'fila')
+    .attr('transform', function (d, i) { return 'translate(0,' + (i * paso) + ')'; });
+
+  filas.append('text')
+    .attr('x', -8).attr('y', altoBarra / 2).attr('text-anchor', 'end').attr('dominant-baseline', 'middle')
+    .attr('class', 'dash-barra-texto')
+    .text(function (d) {
+      // v5.0.0 — Carpetas guarda el camino completo (igual que las Facetas del buscador); se muestra solo el último segmento.
+      let nombre = d.nombre;
+      if (esCarpeta && nombre.indexOf(' > ') !== -1) { const seg = nombre.split(' > '); nombre = seg[seg.length - 1]; }
+      return nombre.length > 20 ? nombre.slice(0, 19) + '…' : nombre;
+    })
+    .append('title').text(function (d) { return d.nombre; });
+
+  filas.append('rect')
+    .attr('class', 'dash-barra').attr('height', altoBarra).attr('rx', 4)
+    .attr('width', function (d) { return Math.max(2, x(d.cantidad)); });
+
+  filas.append('text')
+    .attr('x', function (d) { return x(d.cantidad) + 6; }).attr('y', altoBarra / 2).attr('dominant-baseline', 'middle')
+    .attr('class', 'dash-barra-texto').text(function (d) { return d.cantidad; });
+}
+
+function dibujarDonut(svgId, datos) {
+  const svgEl = document.getElementById(svgId);
+  const svg = d3.select(svgEl);
+  svg.selectAll('*').remove();
+  if (!datos || datos.length === 0) {
+    svg.append('text').attr('x', 12).attr('y', 20).attr('class', 'dash-lista-vacio').text('Sin datos todavía.');
+    return;
+  }
+  const { w, h } = dashDims(svgEl);
+  const radio = Math.min(w, h) / 2 - 8;
+  const cx = radio + 10;
+  const cy = h / 2;
+
+  const pie = d3.pie().value(function (d) { return d.cantidad; }).sort(null);
+  const arco = d3.arc().innerRadius(radio * 0.55).outerRadius(radio);
+
+  const g = svg.append('g').attr('transform', 'translate(' + cx + ',' + cy + ')');
+  g.selectAll('path').data(pie(datos)).enter().append('path')
+    .attr('d', arco)
+    .attr('fill', function (d, i) { return DASH_COLORES_DONUT[i % DASH_COLORES_DONUT.length]; })
+    .append('title').text(function (d) { return d.data.nombre + ': ' + d.data.cantidad; });
+
+  // Leyenda simple a la derecha del donut.
+  const leyenda = svg.append('g').attr('transform', 'translate(' + (cx + radio + 16) + ',' + (cy - datos.length * 9) + ')');
+  const filasLeyenda = leyenda.selectAll('g').data(datos).enter().append('g')
+    .attr('transform', function (d, i) { return 'translate(0,' + (i * 18) + ')'; });
+  filasLeyenda.append('rect').attr('width', 10).attr('height', 10).attr('rx', 2)
+    .attr('fill', function (d, i) { return DASH_COLORES_DONUT[i % DASH_COLORES_DONUT.length]; });
+  filasLeyenda.append('text').attr('x', 16).attr('y', 9).attr('class', 'dash-barra-texto')
+    .text(function (d) { return d.nombre + ' (' + d.cantidad + ')'; });
+}
+
 // ── RESIZER (facetas) ───────────────────────────────────────
 function configurarResizerFacetas() {
   const resizer = document.getElementById('resizer-facetas');
@@ -3227,6 +3576,7 @@ function mostrarPantalla(id) {
   document.getElementById('pantalla-carga').style.display = 'none';
   document.getElementById('pantalla-mapa').style.display = 'none'; // v3.0.0
   document.getElementById('pantalla-grafo').style.display = 'none'; // v4.0.0
+  document.getElementById('pantalla-dashboard').style.display = 'none'; // v5.0.0
 
   if (id === 'app-visible') {
     document.getElementById('app').style.display = 'flex';
@@ -3236,6 +3586,8 @@ function mostrarPantalla(id) {
     document.getElementById('pantalla-mapa').style.display = 'flex';
   } else if (id === 'grafo-visible') {
     document.getElementById('pantalla-grafo').style.display = 'flex';
+  } else if (id === 'dashboard-visible') {
+    document.getElementById('pantalla-dashboard').style.display = 'flex';
   } else {
     document.getElementById(id).classList.add('visible');
   }
