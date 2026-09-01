@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v4.1.0</title>
+<title>BDC — Buscador Documental de Contrato v4.1.1</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,7 +17,25 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
-  index_bdc_v4_1_0.html — v4.1.0 (02-sep-2026)
+  index_bdc_v4_1_1.html — v4.1.1 (02-sep-2026)
+
+  QUÉ CAMBIÓ EN v4.1.1 (respecto a v4.1.0) — Ale reportó: hacer zoom
+  manual, click en un nodo (se abre el panel de detalle), y el
+  lienzo "salta" solo a un fit-all, pisando el zoom que acababa de
+  hacer — en los 2 modos (Etiquetas y Referencias). Backend SIN
+  CAMBIOS (bdc_gas_v4_1_0.gs se reentrega igual, esta es una entrega
+  puramente de frontend).
+   - Causa: cualquier click en un nodo (incluso sin arrastrarlo) ya
+     dispara el 'start' de d3.drag, que reactiva la simulación un
+     instante; al asentarse de nuevo, el listener 'end' de
+     inicializarGrafoD3 se disparaba OTRA VEZ, y volvía a llamar al
+     auto-encuadre (pensado solo para el primer armado del grafo).
+   - Fix: nuevo flag grafoYaEncuadroInicial — el auto-encuadre ahora
+     corre UNA sola vez por carga de grafo (el primer asentado tras
+     pedir los datos); de ahí en más, el zoom/pan queda 100% en
+     manos del usuario hasta que use "Reset" a propósito (que sigue
+     llamando a ajustarZoomAFitGrafo directo, sin pasar por este
+     listener).
 
   QUÉ CAMBIÓ EN v4.1.0 (respecto a v4.0.1) — Ale probó v4.0.1 con
   "3000 PPTK" (3 capturas): Referencias entre documentos ya
@@ -1516,7 +1534,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v4.1.0</div>
+    <div class="caja-version">v4.1.1</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -1573,7 +1591,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v4.1.0</span>
+    <span class="hdr-version">v4.1.1</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
@@ -1654,7 +1672,7 @@ input { font-family: inherit; }
 <div id="pantalla-mapa">
   <header id="mapa-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v4.1.0</span>
+    <span class="hdr-version">v4.1.1</span>
     <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
   </header>
@@ -1682,7 +1700,7 @@ input { font-family: inherit; }
 <div id="pantalla-grafo">
   <header id="grafo-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v4.1.0</span>
+    <span class="hdr-version">v4.1.1</span>
     <span class="hdr-obra-nombre" id="grafo-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeGrafo()">← Buscador</button>
   </header>
@@ -1728,7 +1746,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v4.1.0</span>
+    <span class="hdr-version">v4.1.1</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -2682,6 +2700,7 @@ const GRAFO_COLOR_NODO_ETIQUETA = '#7c3aed'; // v4.1.0 — violeta, para diferen
 let grafoSvg = null, grafoZoomG = null, grafoZoomBehavior = null, grafoSimulation = null;
 let grafoNodos = [], grafoEdges = [], grafoTipoActual = 'etiquetas', grafoNodoSeleccionadoId = null;
 let grafoNodosSimActual = []; // v4.0.1 — última corrida de la simulación, para poder re-encuadrar (Reset) sin volver a pedir datos
+let grafoYaEncuadroInicial = false; // v4.1.1 — ver comentario en inicializarGrafoD3, al lado del listener 'end'
 
 function mostrarPantallaGrafo() {
   mostrarPantalla('grafo-visible');
@@ -2709,6 +2728,7 @@ async function cargarGrafo() {
   const vacioMsg = document.getElementById('grafo-vacio-msg');
   if (grafoSimulation) { grafoSimulation.stop(); grafoSimulation = null; }
   grafoNodosSimActual = [];
+  grafoYaEncuadroInicial = false; // v4.1.1 — nuevo grafo, el próximo asentado sí debe auto-encuadrar
   vacioMsg.style.display = 'none';
   svgEl.style.display = 'none';
   spinnerWrap.style.display = 'flex';
@@ -2841,7 +2861,22 @@ function inicializarGrafoD3() {
       nodeSel.attr('transform', function (d) { return 'translate(' + d.x + ',' + d.y + ')'; });
       labelSel.attr('x', function (d) { return d.x + d.__radio + 4; }).attr('y', function (d) { return d.y + 3; });
     })
-    .on('end', function () { ajustarZoomAFitGrafo(nodosSim); });
+    .on('end', function () {
+      // v4.1.1 — FIX: un click simple en un nodo (sin arrastrarlo) ya
+      // dispara el 'start' de d3.drag, que reactiva la simulación un
+      // instante; cuando esa reactivación se asienta de nuevo, este
+      // mismo 'end' se dispara OTRA VEZ — y volvía a auto-encuadrar,
+      // pisándole el zoom/pan manual al usuario cada vez que abría el
+      // panel de detalle (bug real reportado por Ale, 02-sep). El
+      // auto-encuadre ahora corre UNA sola vez, la primera vez que el
+      // grafo termina de asentarse tras cargar los datos — de ahí en
+      // más el zoom/pan queda en manos del usuario hasta que use
+      // "Reset" a propósito (que sigue llamando a
+      // ajustarZoomAFitGrafo directamente, sin pasar por acá).
+      if (grafoYaEncuadroInicial) return;
+      grafoYaEncuadroInicial = true;
+      ajustarZoomAFitGrafo(nodosSim);
+    });
 
   grafoZoomBehavior = d3.zoom()
     .scaleExtent([0.15, 3])
