@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v3.1.0</title>
+<title>BDC — Buscador Documental de Contrato v3.2.0</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,7 +17,28 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
-  index_bdc_v3_1_0.html — v3.1.0 (02-sep-2026)
+  index_bdc_v3_2_0.html — v3.2.0 (02-sep-2026)
+
+  QUÉ CAMBIÓ EN v3.2.0 (respecto a v3.1.0) — Ale probó v3.1.0: OK en
+  todo (bug de botones resuelto, Mapa Documental andando bien), un
+  solo comentario — las tarjetas truncaban nombres largos ("F -
+  Estandares y tipi…") y hay que verlos completos. Entrega puramente
+  visual, sin cambios de backend/datos (el backend de esta versión
+  SÍ cambió, pero por la Entrega 2 de ReferenciaDocumentos —
+  ver bdc_gas_v3_2_0.gs — no relacionado a este ajuste).
+   - Mapa Documental — ancho de tarjeta DINÁMICO: se mide el ancho
+     real de cada nombre con getComputedTextLength() y la tarjeta
+     crece para que entre completo, con un piso mínimo
+     (MAPA_NODE_MIN_W=130) para que las carpetas cortas no queden
+     angostas. Reemplaza mapaTruncarNombre_ (eliminada) y el ancho
+     fijo MAPA_NODE_W — ahora cada nodo guarda su propio ancho
+     (d.data.__ancho). La posición horizontal de cada NIVEL del árbol
+     se recalcula acumulando el ancho MÁXIMO de ese nivel + un gap
+     fijo (MAPA_LEVEL_GAP=70), en vez de una separación uniforme
+     entre niveles — así un nivel con nombres largos no pisa al
+     siguiente. Toggle +/− y badge de contador (que van pegados al
+     borde derecho de la tarjeta) ahora se posicionan por nodo, no
+     con una constante global.
 
   QUÉ CAMBIÓ EN v3.1.0 (respecto a v3.0.0) — Ale probó v3.0.0: los 3
   UX chicos de carga funcionaron OK, pero la Vista Mapa Mental fue
@@ -1277,7 +1298,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v3.1.0</div>
+    <div class="caja-version">v3.2.0</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -1334,7 +1355,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v3.1.0</span>
+    <span class="hdr-version">v3.2.0</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
@@ -1412,7 +1433,7 @@ input { font-family: inherit; }
 <div id="pantalla-mapa">
   <header id="mapa-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v3.1.0</span>
+    <span class="hdr-version">v3.2.0</span>
     <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
   </header>
@@ -1440,7 +1461,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v3.1.0</span>
+    <span class="hdr-version">v3.2.0</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -2124,9 +2145,17 @@ function limpiarFaceta(tipo) {
 // obtenerArbolCarpetas_, mismo criterio de conteo acumulado. Motor
 // pensado para reusarse en el futuro Grafo (Entrega 3), ahí con
 // d3-force en vez de d3.tree() porque el Grafo no es jerárquico.
-const MAPA_NODE_W = 190;
+// v3.2.0 — ancho de tarjeta DINÁMICO (Ale: "no es útil que los
+// textos se corten, hay que verlos completo"). En vez de un ancho
+// fijo con texto truncado, se mide el ancho real de cada nombre
+// (getComputedTextLength()) y la tarjeta crece para que entre
+// completo, con un piso mínimo para que las carpetas cortas no
+// queden angostas.
+const MAPA_NODE_MIN_W = 130;   // ancho mínimo de tarjeta
+const MAPA_NODE_PAD_L = 14;    // margen izquierdo del texto (antes del nombre)
+const MAPA_NODE_PAD_R = 26;    // margen derecho del texto (antes del borde de la tarjeta)
 const MAPA_NODE_H = 40;
-const MAPA_LEVEL_GAP = 260;  // separación horizontal entre niveles
+const MAPA_LEVEL_GAP = 70;   // separación horizontal entre el borde derecho de la tarjeta más ancha de un nivel y el siguiente nivel
 const MAPA_SIB_GAP = 16;     // separación vertical mínima entre hermanos
 // Paleta por nivel de profundidad — versión oscura/saturada de la
 // referencia de Ale (lila/celeste/verde de NotebookLM), adaptada a
@@ -2204,13 +2233,11 @@ function inicializarMapaD3(datosArbol) {
   mapaSvg.call(mapaZoomBehavior.transform, d3.zoomIdentity.translate(48, vpH / 2));
 }
 
-function mapaTruncarNombre_(nombre) {
-  const MAX = 22;
-  return nombre.length > MAX ? nombre.slice(0, MAX - 1) + '…' : nombre;
-}
-
 function renderMapaD3() {
-  const layout = d3.tree().nodeSize([MAPA_NODE_H + MAPA_SIB_GAP, MAPA_LEVEL_GAP]);
+  // El 2do valor de nodeSize (separación transversal por nivel) ya
+  // no importa: el ancho real por nivel se mide más abajo y d.y se
+  // recalcula a mano, pisando lo que ponga acá d3.tree().
+  const layout = d3.tree().nodeSize([MAPA_NODE_H + MAPA_SIB_GAP, 1]);
   layout(mapaRoot);
 
   const nodos = mapaRoot.descendants();
@@ -2225,22 +2252,12 @@ function renderMapaD3() {
 
   const t = mapaSvg.transition().duration(200);
 
-  // ── enlaces ──
-  const linkSel = mapaZoomG.select('g.mapa-links').selectAll('path.mapa-link')
-    .data(enlaces, function (d) { return d.target.data.__id; });
-  linkSel.exit().remove();
-  linkSel.enter().append('path').attr('class', 'mapa-link')
-    .merge(linkSel)
-    .transition(t)
-    .attr('d', linkGen);
-
   // ── nodos ──
   const nodeSel = mapaZoomG.select('g.mapa-nodes').selectAll('g.mapa-nodo')
     .data(nodos, function (d) { return d.data.__id; });
   nodeSel.exit().remove();
 
-  const nodeEnter = nodeSel.enter().append('g').attr('class', 'mapa-nodo')
-    .attr('transform', function (d) { return 'translate(' + d.y + ',' + d.x + ')'; });
+  const nodeEnter = nodeSel.enter().append('g').attr('class', 'mapa-nodo');
 
   const esRaiz = function (d) { return d.depth === 0; };
   const colorNivel = function (d) { return MAPA_COLORES_NIVEL[d.depth % MAPA_COLORES_NIVEL.length]; };
@@ -2248,7 +2265,7 @@ function renderMapaD3() {
   nodeEnter.append('rect')
     .attr('class', function (d) { return 'mapa-nodo-rect' + (esRaiz(d) ? ' raiz' : ''); })
     .attr('x', 0).attr('y', -MAPA_NODE_H / 2)
-    .attr('width', MAPA_NODE_W).attr('height', MAPA_NODE_H)
+    .attr('height', MAPA_NODE_H)
     .attr('rx', 10)
     .attr('fill', colorNivel);
 
@@ -2256,7 +2273,7 @@ function renderMapaD3() {
 
   nodeEnter.append('text')
     .attr('class', function (d) { return 'mapa-nodo-texto' + (esRaiz(d) ? ' raiz' : ''); })
-    .attr('x', 14).attr('y', 1).attr('dominant-baseline', 'middle');
+    .attr('x', MAPA_NODE_PAD_L).attr('y', 1).attr('dominant-baseline', 'middle');
 
   // toggle +/− (solo si tiene hijos, visibles u ocultos)
   const toggleEnter = nodeEnter.filter(function (d) { return d.data.hijos && d.data.hijos.length; })
@@ -2267,9 +2284,9 @@ function renderMapaD3() {
       else { d.children = d._children; d._children = null; }
       renderMapaD3();
     });
-  toggleEnter.append('circle').attr('cx', MAPA_NODE_W).attr('cy', 0).attr('r', 9);
+  toggleEnter.append('circle').attr('cy', 0).attr('r', 9);
   toggleEnter.append('text').attr('class', 'mapa-toggle-texto')
-    .attr('x', MAPA_NODE_W).attr('y', 1).attr('text-anchor', 'middle').attr('dominant-baseline', 'middle');
+    .attr('y', 1).attr('text-anchor', 'middle').attr('dominant-baseline', 'middle');
 
   // badge de contador (esquina superior derecha)
   const badgeEnter = nodeEnter.append('g').attr('class', 'mapa-badge')
@@ -2279,36 +2296,80 @@ function renderMapaD3() {
       event.stopPropagation();
       filtrarPorNodoMapa(rutas);
     });
-  badgeEnter.append('circle').attr('cx', MAPA_NODE_W - 4).attr('cy', -MAPA_NODE_H / 2 + 2).attr('r', 11);
+  badgeEnter.append('circle').attr('cy', -MAPA_NODE_H / 2 + 2).attr('r', 11);
   badgeEnter.append('text').attr('class', 'mapa-badge-texto')
-    .attr('x', MAPA_NODE_W - 4).attr('y', -MAPA_NODE_H / 2 + 3)
+    .attr('y', -MAPA_NODE_H / 2 + 3)
     .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle');
 
   const nodeMerge = nodeEnter.merge(nodeSel);
 
-  nodeMerge.transition(t)
-    .attr('transform', function (d) { return 'translate(' + d.y + ',' + d.x + ')'; });
-
   nodeMerge.select('rect.mapa-nodo-rect').attr('fill', colorNivel);
   nodeMerge.select('title').text(function (d) { return d.data.nombre; });
-  nodeMerge.select('text.mapa-nodo-texto').text(function (d) { return mapaTruncarNombre_(d.data.nombre); });
+  // v3.2.0 — sin truncar: el nombre completo siempre. El ancho de la
+  // tarjeta es lo que se ajusta, no el texto.
+  nodeMerge.select('text.mapa-nodo-texto').text(function (d) { return d.data.nombre; });
+
+  // ── medir el ancho real de cada nombre (ya renderizado en el DOM)
+  // y calcular el ancho de tarjeta que le corresponde a cada nodo ──
+  nodeMerge.select('text.mapa-nodo-texto').each(function (d) {
+    const anchoTexto = this.getComputedTextLength();
+    d.data.__ancho = Math.max(MAPA_NODE_MIN_W, anchoTexto + MAPA_NODE_PAD_L + MAPA_NODE_PAD_R);
+  });
+
+  // ── posición X por nivel: acumulada según el ancho MÁXIMO de ese
+  // nivel (no todas las tarjetas de un mismo nivel miden lo mismo) ──
+  const anchoMaxPorNivel = [];
+  nodos.forEach(function (d) {
+    anchoMaxPorNivel[d.depth] = Math.max(anchoMaxPorNivel[d.depth] || 0, d.data.__ancho);
+  });
+  const offsetPorNivel = [];
+  let acumulado = 0;
+  for (let nivel = 0; nivel < anchoMaxPorNivel.length; nivel++) {
+    offsetPorNivel[nivel] = acumulado;
+    acumulado += anchoMaxPorNivel[nivel] + MAPA_LEVEL_GAP;
+  }
+  nodos.forEach(function (d) { d.y = offsetPorNivel[d.depth]; });
+
+  // ── aplicar el ancho definitivo a tarjeta + toggle + badge (los 2
+  // últimos van pegados al borde derecho, que ahora es variable) ──
+  nodeMerge.select('rect.mapa-nodo-rect').attr('width', function (d) { return d.data.__ancho; });
 
   nodeMerge.select('.mapa-toggle-circulo').each(function (d) {
-    d3.select(this).select('circle').attr('stroke', colorNivel(d));
-    d3.select(this).select('text').text(d.children ? '−' : '+').attr('fill', colorNivel(d));
+    const borde = d.data.__ancho;
+    d3.select(this).select('circle').attr('cx', borde).attr('stroke', colorNivel(d));
+    d3.select(this).select('text').attr('x', borde).text(d.children ? '−' : '+').attr('fill', colorNivel(d));
   });
 
   nodeMerge.select('.mapa-badge').each(function (d) {
+    const cx = d.data.__ancho - 4;
     const conDatos = d.data.rutas && d.data.rutas.length > 0;
     d3.select(this).classed('con-datos', conDatos);
     d3.select(this).select('circle')
+      .attr('cx', cx)
       .attr('fill', conDatos ? 'var(--accent)' : 'var(--border)');
     d3.select(this).select('text')
+      .attr('x', cx)
       .text(d.data.cantidad)
       .attr('fill', conDatos ? '#fff' : 'var(--muted)');
     d3.select(this).select('title').remove();
     if (conDatos) d3.select(this).append('title').text('Filtrar el buscador por esta carpeta');
   });
+
+  // ── posición final de los nodos (d.y ya recalculado arriba) ──
+  // Nodos que recién entran aparecen directo en su lugar (sin
+  // "volar" desde el origen); los que ya existían transicionan.
+  nodeEnter.attr('transform', function (d) { return 'translate(' + d.y + ',' + d.x + ')'; });
+  nodeMerge.transition(t)
+    .attr('transform', function (d) { return 'translate(' + d.y + ',' + d.x + ')'; });
+
+  // ── enlaces: recién ahora que los d.y son definitivos ──
+  const linkSel = mapaZoomG.select('g.mapa-links').selectAll('path.mapa-link')
+    .data(enlaces, function (d) { return d.target.data.__id; });
+  linkSel.exit().remove();
+  linkSel.enter().append('path').attr('class', 'mapa-link')
+    .merge(linkSel)
+    .transition(t)
+    .attr('d', linkGen);
 }
 
 // v3.0.0 (Ale, 01-sep) — click en el badge aplica TODAS las rutas
