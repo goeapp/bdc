@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v5.0.0</title>
+<title>BDC — Buscador Documental de Contrato v5.0.1</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,7 +17,34 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
-  index_bdc_v5_0_0.html — v5.0.0 (02-sep-2026)
+  index_bdc_v5_0_1.html — v5.0.1 (02-sep-2026)
+
+  QUÉ CAMBIÓ EN v5.0.1 (respecto a v5.0.0) — Ale probó el Dashboard
+  (2 capturas): "funcionó, pero se ve rústico, no es interactivo, no
+  entra en una pantalla". Además de eso, se detectaron 3 bugs reales
+  mirando las capturas — no solo un tema visual. Backend SIN CAMBIOS
+  (bdc_gas_v5_0_0.gs se reentrega igual, entrega puramente de
+  frontend).
+   - FIX: gráficos de línea (Carga en el tiempo, Actividad de
+     búsquedas) con datos de UN SOLO día mostraban solo un punto
+     suelto, sin línea/área — d3.extent con mín=máx colapsa el
+     dominio de tiempo a ancho cero. Se pisa el dominio con ±1 día de
+     margen en ese caso puntual.
+   - FIX: la leyenda del donut (Familias de código) no se veía —
+     el radio se calculaba SIN reservarle espacio, así que la
+     leyenda quedaba dibujada fuera del ancho visible del SVG.
+   - FIX: "Documentos más conectados" se veía con scroll horizontal
+     feo — el wrapper de nombre+carpeta no tenía min-width:0 (bug
+     clásico de flexbox: sin eso, un item nunca se achica por debajo
+     del ancho de su contenido, así que el texto largo empujaba todo
+     el panel en vez de truncarse con "…").
+   - Tooltip PROPIO (#dash-tooltip, recuadro oscuro que sigue al
+     mouse) en vez del title nativo del navegador — en barras, donut
+     y puntos de línea. Reemplaza el tooltip nativo lento y sin
+     estilo.
+   - Más compacto: KPIs y paneles más chicos (menos padding, menos
+     min-height), grilla más densa (columnas mínimas de 240px en vez
+     de 320px) — entra más de un vistazo con menos scroll.
 
   QUÉ CAMBIÓ EN v5.0.0 (respecto a v4.2.0) — Dashboard de la obra,
   nueva vista (salto de versión mayor, mismo criterio que Mapa
@@ -1281,55 +1308,81 @@ input { font-family: inherit; }
 .grafo-nodo-texto.visible { opacity: 1; }
 
 /* ─────────────────────────────────────────────────
-   PANTALLA — DASHBOARD (v5.0.0, consulta)
+   PANTALLA — DASHBOARD (v5.0.1, consulta)
    Grilla de KPIs + paneles con gráficos D3 (mismo bundle ya cargado
    para Mapa Documental/Grafo, sin dependencias nuevas).
+   v5.0.1 — más compacto (KPIs y paneles más chicos, grilla más
+   densa) para que entre más de un vistazo con menos scroll; tooltip
+   propio (#dash-tooltip) en vez del title nativo del navegador.
 ───────────────────────────────────────────────── */
 #pantalla-dashboard { display: none; flex-direction: column; height: 100vh; }
 #dashboard-header { height: var(--header-h); background: var(--accent2); display: flex; align-items: center; padding: 0 18px; gap: 12px; flex-shrink: 0; border-bottom: 1px solid rgba(255,255,255,.06); }
-#dashboard-body { flex: 1; overflow-y: auto; padding: 20px; position: relative; }
+#dashboard-body { flex: 1; overflow-y: auto; padding: 16px; position: relative; }
 #dashboard-spinner-wrap { display: flex; align-items: center; justify-content: center; padding: 80px 0; }
 
-#dashboard-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+#dashboard-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px; }
 .dash-kpi {
   background   : var(--surface);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   box-shadow   : 0 1px 4px rgba(0,0,0,.07), 0 0 0 .5px rgba(0,0,0,.06);
-  padding      : 16px 18px;
+  padding      : 10px 14px;
 }
-.dash-kpi-valor { font-family: 'Bebas Neue', sans-serif; font-size: 2.1rem; line-height: 1; color: var(--accent2); }
+.dash-kpi-valor { font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; line-height: 1; color: var(--accent2); }
 .dash-kpi-valor.acento { color: var(--accent); }
-.dash-kpi-label { font-size: .74rem; color: var(--muted); margin-top: 4px; }
+.dash-kpi-label { font-size: .68rem; color: var(--muted); margin-top: 2px; }
 
-#dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+#dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
 .dash-panel {
   background   : var(--surface);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   box-shadow   : 0 1px 4px rgba(0,0,0,.07), 0 0 0 .5px rgba(0,0,0,.06);
-  padding      : 16px 18px 18px;
-  min-height   : 220px;
+  padding      : 12px 14px 14px;
+  min-height   : 160px;
   display      : flex;
   flex-direction: column;
 }
 .dash-panel-ancho { grid-column: 1 / -1; }
-.dash-panel-titulo { font-size: .76rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 10px; }
-.dash-chart { width: 100%; flex: 1; min-height: 180px; }
+.dash-panel-titulo { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 6px; }
+.dash-chart { width: 100%; flex: 1; min-height: 130px; }
+.dash-chart.dash-chart-ancho { min-height: 150px; }
 
-.dash-lista { flex: 1; overflow-y: auto; }
-.dash-lista-vacio { font-size: .8rem; color: var(--muted); padding: 8px 0; }
+.dash-lista { flex: 1; overflow-y: auto; max-height: 220px; }
+.dash-lista-vacio { font-size: .78rem; color: var(--muted); padding: 6px 0; }
 .dash-lista-item {
   display        : flex;
   justify-content: space-between;
   align-items    : baseline;
   gap            : 10px;
-  padding        : 8px 0;
+  padding        : 6px 0;
   border-bottom  : 1px solid var(--border);
-  font-size      : .82rem;
+  font-size      : .8rem;
 }
 .dash-lista-item:last-child { border-bottom: none; }
-.dash-lista-item-nombre { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dash-lista-item-sub { font-size: .7rem; color: var(--muted); }
-.dash-lista-item-valor { font-weight: 700; color: var(--accent2); flex-shrink: 0; }
+/* v5.0.1 — FIX: sin min-width:0 en el wrapper, un flex item nunca se
+   achica por debajo del ancho de su contenido — por eso el nombre
+   largo empujaba todo el panel a un scroll horizontal en vez de
+   truncarse con "…" (bug real de Ale, captura de "Documentos más
+   conectados"). */
+.dash-lista-item-info { min-width: 0; flex: 1; overflow: hidden; }
+.dash-lista-item-nombre { display: block; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-lista-item-sub { font-size: .68rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-lista-item-valor { font-weight: 700; color: var(--accent2); flex-shrink: 0; font-size: .78rem; }
+
+/* v5.0.1 — tooltip propio (reemplaza el title nativo del navegador,
+   lento y sin estilo) para barras/donut/puntos de línea. */
+#dash-tooltip {
+  position     : fixed;
+  display      : none;
+  pointer-events: none;
+  z-index      : 400;
+  background   : var(--accent2);
+  color        : #fff;
+  font-size    : .74rem;
+  padding      : 6px 10px;
+  border-radius: 6px;
+  box-shadow   : var(--shadow-md);
+  white-space  : nowrap;
+}
 
 /* Ejes/series de los gráficos D3 */
 .dash-eje path, .dash-eje line { stroke: var(--border); }
@@ -1645,7 +1698,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v5.0.0</div>
+    <div class="caja-version">v5.0.1</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -1702,7 +1755,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.0.0</span>
+    <span class="hdr-version">v5.0.1</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
@@ -1786,7 +1839,7 @@ input { font-family: inherit; }
 <div id="pantalla-mapa">
   <header id="mapa-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.0.0</span>
+    <span class="hdr-version">v5.0.1</span>
     <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
   </header>
@@ -1814,7 +1867,7 @@ input { font-family: inherit; }
 <div id="pantalla-grafo">
   <header id="grafo-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.0.0</span>
+    <span class="hdr-version">v5.0.1</span>
     <span class="hdr-obra-nombre" id="grafo-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeGrafo()">← Buscador</button>
   </header>
@@ -1860,7 +1913,7 @@ input { font-family: inherit; }
 <div id="pantalla-dashboard">
   <header id="dashboard-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.0.0</span>
+    <span class="hdr-version">v5.0.1</span>
     <span class="hdr-obra-nombre" id="dashboard-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeDashboard()">← Buscador</button>
   </header>
@@ -1876,7 +1929,7 @@ input { font-family: inherit; }
       <div id="dashboard-grid">
         <div class="dash-panel dash-panel-ancho">
           <div class="dash-panel-titulo">Carga de documentos en el tiempo</div>
-          <svg class="dash-chart" id="dash-chart-carga" xmlns="http://www.w3.org/2000/svg"></svg>
+          <svg class="dash-chart dash-chart-ancho" id="dash-chart-carga" xmlns="http://www.w3.org/2000/svg"></svg>
         </div>
         <div class="dash-panel">
           <div class="dash-panel-titulo">Top Etiquetas</div>
@@ -1904,18 +1957,20 @@ input { font-family: inherit; }
         </div>
         <div class="dash-panel dash-panel-ancho">
           <div class="dash-panel-titulo">Actividad de búsquedas en el tiempo</div>
-          <svg class="dash-chart" id="dash-chart-busquedas" xmlns="http://www.w3.org/2000/svg"></svg>
+          <svg class="dash-chart dash-chart-ancho" id="dash-chart-busquedas" xmlns="http://www.w3.org/2000/svg"></svg>
         </div>
       </div>
     </div>
   </div>
 </div>
+<!-- v5.0.1 — tooltip propio compartido por todos los gráficos del Dashboard -->
+<div id="dash-tooltip"></div>
 
 <!-- ═══════════════ PANTALLA — CARGA DE DOCUMENTOS (solo admin, v2.0.0) ═══════════════ -->
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.0.0</span>
+    <span class="hdr-version">v5.0.1</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -3379,9 +3434,12 @@ function renderDashboardLista(contId, items, mapear, mensajeVacio) {
   }
   cont.innerHTML = items.map(function (raw) {
     const it = mapear(raw);
+    // v5.0.1 — FIX: el wrapper de nombre+sub necesita su propia clase
+    // con min-width:0 (ver CSS .dash-lista-item-info) para poder
+    // achicarse y truncar con "…" en vez de forzar scroll horizontal.
     return '<div class="dash-lista-item">'
-      + '<div><div class="dash-lista-item-nombre" title="' + escapeHtml(it.nombre) + '">' + escapeHtml(it.nombre) + '</div>'
-      + (it.sub ? '<div class="dash-lista-item-sub">' + escapeHtml(it.sub) + '</div>' : '') + '</div>'
+      + '<div class="dash-lista-item-info"><div class="dash-lista-item-nombre" title="' + escapeHtml(it.nombre) + '">' + escapeHtml(it.nombre) + '</div>'
+      + (it.sub ? '<div class="dash-lista-item-sub" title="' + escapeHtml(it.sub) + '">' + escapeHtml(it.sub) + '</div>' : '') + '</div>'
       + '<div class="dash-lista-item-valor">' + escapeHtml(it.valor) + '</div>'
       + '</div>';
   }).join('');
@@ -3395,6 +3453,24 @@ function dashDims(svgEl) {
   const w = svgEl.clientWidth || svgEl.parentElement.clientWidth || 300;
   const h = svgEl.clientHeight || 200;
   return { w: w, h: h };
+}
+
+// v5.0.1 — tooltip propio (reemplaza el title nativo del navegador,
+// lento y sin estilo) compartido por los 3 tipos de gráfico.
+function mostrarTooltipDash(event, texto) {
+  const el = document.getElementById('dash-tooltip');
+  el.textContent = texto;
+  el.style.left = (event.clientX + 14) + 'px';
+  el.style.top = (event.clientY + 14) + 'px';
+  el.style.display = 'block';
+}
+function moverTooltipDash(event) {
+  const el = document.getElementById('dash-tooltip');
+  el.style.left = (event.clientX + 14) + 'px';
+  el.style.top = (event.clientY + 14) + 'px';
+}
+function ocultarTooltipDash() {
+  document.getElementById('dash-tooltip').style.display = 'none';
 }
 
 function dibujarLineChart(svgId, datos, etiquetaUnidad) {
@@ -3413,7 +3489,17 @@ function dibujarLineChart(svgId, datos, etiquetaUnidad) {
   const parseFecha = d3.timeParse('%Y-%m-%d');
   const puntos = datos.map(function (d) { return { fecha: parseFecha(d.fecha), cantidad: d.cantidad }; });
 
-  const x = d3.scaleTime().domain(d3.extent(puntos, function (d) { return d.fecha; })).range([0, innerW]);
+  // v5.0.1 — FIX: con un solo día de datos, d3.extent devuelve el
+  // mismo valor como mín y máx -> el dominio de tiempo colapsa a
+  // ancho cero y no queda dónde dibujar la línea/área (solo se veía
+  // el punto suelto, reportado por Ale). Se pisa el dominio con ±1
+  // día de margen en ese caso puntual, para que el punto quede
+  // centrado con espacio real a los lados.
+  let dominioX = d3.extent(puntos, function (d) { return d.fecha; });
+  if (dominioX[0].getTime() === dominioX[1].getTime()) {
+    dominioX = [d3.timeDay.offset(dominioX[0], -1), d3.timeDay.offset(dominioX[0], 1)];
+  }
+  const x = d3.scaleTime().domain(dominioX).range([0, innerW]);
   const y = d3.scaleLinear().domain([0, d3.max(puntos, function (d) { return d.cantidad; }) || 1]).nice().range([innerH, 0]);
 
   const ejeX = d3.axisBottom(x).ticks(Math.min(6, puntos.length)).tickFormat(d3.timeFormat('%d/%m'));
@@ -3428,10 +3514,14 @@ function dibujarLineChart(svgId, datos, etiquetaUnidad) {
   g.append('path').datum(puntos).attr('class', 'dash-area').attr('d', area);
   g.append('path').datum(puntos).attr('class', 'dash-linea').attr('d', linea);
 
+  const formatoFecha = d3.timeFormat('%d/%m/%Y');
   g.selectAll('circle.dash-punto').data(puntos).enter().append('circle')
-    .attr('class', 'dash-punto').attr('r', 3).attr('fill', 'var(--accent2)')
+    .attr('class', 'dash-punto').attr('r', 4).attr('fill', 'var(--accent2)')
     .attr('cx', function (d) { return x(d.fecha); }).attr('cy', function (d) { return y(d.cantidad); })
-    .append('title').text(function (d) { return d.cantidad + ' ' + etiquetaUnidad; });
+    .style('cursor', 'default')
+    .on('mouseover', function (event, d) { mostrarTooltipDash(event, formatoFecha(d.fecha) + ' — ' + d.cantidad + ' ' + etiquetaUnidad); })
+    .on('mousemove', moverTooltipDash)
+    .on('mouseout', ocultarTooltipDash);
 }
 
 function dibujarBarrasHorizontales(svgId, datos, esCarpeta) {
@@ -3443,18 +3533,22 @@ function dibujarBarrasHorizontales(svgId, datos, esCarpeta) {
     return;
   }
   const { w, h } = dashDims(svgEl);
-  const margenIzq = 130;
-  const margenDer = 34;
+  const margenIzq = 110;
+  const margenDer = 30;
   const innerW = Math.max(40, w - margenIzq - margenDer);
-  const altoBarra = Math.min(22, Math.floor((h - 10) / datos.length) - 6);
-  const paso = altoBarra + 8;
+  const altoBarra = Math.min(18, Math.floor((h - 10) / datos.length) - 5);
+  const paso = altoBarra + 7;
 
   const x = d3.scaleLinear().domain([0, d3.max(datos, function (d) { return d.cantidad; }) || 1]).range([0, innerW]);
   const g = svg.append('g').attr('transform', 'translate(' + margenIzq + ',6)');
 
   const filas = g.selectAll('g.fila').data(datos).enter().append('g')
     .attr('class', 'fila')
-    .attr('transform', function (d, i) { return 'translate(0,' + (i * paso) + ')'; });
+    .attr('transform', function (d, i) { return 'translate(0,' + (i * paso) + ')'; })
+    .style('cursor', 'default')
+    .on('mouseover', function (event, d) { mostrarTooltipDash(event, d.nombre + ': ' + d.cantidad); })
+    .on('mousemove', moverTooltipDash)
+    .on('mouseout', ocultarTooltipDash);
 
   filas.append('text')
     .attr('x', -8).attr('y', altoBarra / 2).attr('text-anchor', 'end').attr('dominant-baseline', 'middle')
@@ -3463,9 +3557,8 @@ function dibujarBarrasHorizontales(svgId, datos, esCarpeta) {
       // v5.0.0 — Carpetas guarda el camino completo (igual que las Facetas del buscador); se muestra solo el último segmento.
       let nombre = d.nombre;
       if (esCarpeta && nombre.indexOf(' > ') !== -1) { const seg = nombre.split(' > '); nombre = seg[seg.length - 1]; }
-      return nombre.length > 20 ? nombre.slice(0, 19) + '…' : nombre;
-    })
-    .append('title').text(function (d) { return d.nombre; });
+      return nombre.length > 16 ? nombre.slice(0, 15) + '…' : nombre;
+    });
 
   filas.append('rect')
     .attr('class', 'dash-barra').attr('height', altoBarra).attr('rx', 4)
@@ -3485,7 +3578,13 @@ function dibujarDonut(svgId, datos) {
     return;
   }
   const { w, h } = dashDims(svgEl);
-  const radio = Math.min(w, h) / 2 - 8;
+  // v5.0.1 — FIX: el radio se calculaba sin reservarle espacio a la
+  // leyenda, así que la leyenda quedaba dibujada FUERA del ancho
+  // visible del SVG (invisible, reportado por Ale — captura sin
+  // texto al lado del donut). Se resta un ancho fijo para la
+  // leyenda ANTES de calcular el radio.
+  const anchoLeyenda = 120;
+  const radio = Math.max(28, Math.min((w - anchoLeyenda) / 2, h / 2) - 8);
   const cx = radio + 10;
   const cy = h / 2;
 
@@ -3496,16 +3595,23 @@ function dibujarDonut(svgId, datos) {
   g.selectAll('path').data(pie(datos)).enter().append('path')
     .attr('d', arco)
     .attr('fill', function (d, i) { return DASH_COLORES_DONUT[i % DASH_COLORES_DONUT.length]; })
-    .append('title').text(function (d) { return d.data.nombre + ': ' + d.data.cantidad; });
+    .style('cursor', 'default')
+    .on('mouseover', function (event, d) { mostrarTooltipDash(event, d.data.nombre + ': ' + d.data.cantidad); })
+    .on('mousemove', moverTooltipDash)
+    .on('mouseout', ocultarTooltipDash);
 
-  // Leyenda simple a la derecha del donut.
-  const leyenda = svg.append('g').attr('transform', 'translate(' + (cx + radio + 16) + ',' + (cy - datos.length * 9) + ')');
+  // Leyenda simple a la derecha del donut, dentro del ancho reservado.
+  const leyenda = svg.append('g').attr('transform', 'translate(' + (cx + radio + 14) + ',' + Math.max(4, (cy - datos.length * 9)) + ')');
   const filasLeyenda = leyenda.selectAll('g').data(datos).enter().append('g')
-    .attr('transform', function (d, i) { return 'translate(0,' + (i * 18) + ')'; });
+    .attr('transform', function (d, i) { return 'translate(0,' + (i * 17) + ')'; });
   filasLeyenda.append('rect').attr('width', 10).attr('height', 10).attr('rx', 2)
     .attr('fill', function (d, i) { return DASH_COLORES_DONUT[i % DASH_COLORES_DONUT.length]; });
-  filasLeyenda.append('text').attr('x', 16).attr('y', 9).attr('class', 'dash-barra-texto')
-    .text(function (d) { return d.nombre + ' (' + d.cantidad + ')'; });
+  filasLeyenda.append('text').attr('x', 15).attr('y', 9).attr('class', 'dash-barra-texto')
+    .text(function (d) {
+      const txt = d.nombre + ' (' + d.cantidad + ')';
+      return txt.length > 16 ? txt.slice(0, 15) + '…' : txt;
+    })
+    .append('title').text(function (d) { return d.nombre + ' (' + d.cantidad + ')'; });
 }
 
 // ── RESIZER (facetas) ───────────────────────────────────────
