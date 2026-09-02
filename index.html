@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v5.0.2</title>
+<title>BDC — Buscador Documental de Contrato v5.1.0</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,7 +17,33 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
-  index_bdc_v5_0_2.html — v5.0.2 (02-sep-2026)
+  index_bdc_v5_1_0.html — v5.1.0 (02-sep-2026)
+
+  QUÉ CAMBIÓ EN v5.1.0 (respecto a v5.0.2) — Ale probó v5.0.2 y trajo
+  7 puntos; se diseñó y cerró el de 4 antes de codear (ver
+  Handoff_BDC_diseno_siguiente_entrega.md): 3 fixes chicos +
+  Comentarios en documentos. Backend v5.0.0 → v5.1.0 (Comentarios +
+  fix de orden de subcarpetas).
+   - NUEVO — Comentarios en documentos: acordeón expandible dentro
+     de cada tarjeta de resultado ("💬 Comentarios (N)"). Al
+     desplegar, muestra los comentarios existentes (usuario + fecha +
+     texto) + un textarea para agregar uno nuevo. Comentarios propios
+     con botones Editar/Borrar; de otros usuarios, solo lectura. NO
+     entran en la búsqueda — viven solo dentro de la ficha del
+     documento. Como cada tarjeta es por página (no por documento),
+     el acordeón vive en la tarjeta tal cual pidió Ale en el diseño;
+     agregar/editar/borrar actualiza en memoria TODAS las tarjetas
+     visibles de ese mismo Documento+Carpeta, no solo la que se tocó.
+   - FIX: tooltip del Dashboard (#dash-tooltip) se cortaba contra el
+     borde derecho de la pantalla en paneles angostos o pantallas
+     chicas — ahora mide su propio ancho y flipea hacia la izquierda
+     del cursor si no entra a la derecha.
+   - FIX: el resaltado de coincidencias de búsqueda (<mark>) usaba
+     los mismos tokens de color que las etiquetas (--tag-bg/--tag-fg,
+     ambos ámbar), lo que confundía. Nuevos tokens --hl-bg/--hl-fg
+     (azul), exclusivos del resaltado de búsqueda.
+   - FIX: subcarpetas en la pantalla de carga ahora llegan en orden
+     alfabético (ordenadas del lado del backend, explorarCarpeta_).
 
   QUÉ CAMBIÓ EN v5.0.2 (respecto a v5.0.1) — Ale probó v5.0.1: "mucho
   mejor" en general. Único pedido: los gráficos de línea de "Carga
@@ -607,6 +633,11 @@
   --tag-fg   : #92400e;
   --tag-sel  : #d97706;
   --tag-sfg  : #ffffff;
+  /* v5.1.0 — resaltado de coincidencias de búsqueda (<mark>): antes
+     compartía --tag-bg/--tag-fg (ámbar) con las etiquetas, lo que
+     confundía. Familia de azul, exclusiva del resaltado. */
+  --hl-bg    : #dbeafe;
+  --hl-fg    : #1e40af;
   --text     : #1e293b;
   --muted    : #64748b;
   --success  : #16a34a;
@@ -943,7 +974,7 @@ input { font-family: inherit; }
 .resultado-meta { font-size: .68rem; color: var(--muted); margin-bottom: 8px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .resultado-carpeta { color: var(--muted); }
 .resultado-snippet { font-size: .8rem; color: var(--text); line-height: 1.5; margin-bottom: 10px; }
-.resultado-snippet mark { background: var(--tag-bg); color: var(--tag-fg); padding: 1px 2px; border-radius: 3px; font-weight: 600; }
+.resultado-snippet mark { background: var(--hl-bg); color: var(--hl-fg); padding: 1px 2px; border-radius: 3px; font-weight: 600; } /* v5.1.0 — distinto de las etiquetas (ámbar) */
 .resultado-etiquetas { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
 .resultado-etiqueta-chip {
   font-size    : .64rem;
@@ -966,6 +997,63 @@ input { font-family: inherit; }
 }
 .btn-resultado:hover { border-color: var(--accent); color: var(--accent); background: #fffbeb; }
 .btn-resultado.ver { border-color: var(--accent2); }
+
+/* v5.1.0 — acordeón de Comentarios dentro de la tarjeta de resultado */
+.resultado-comentarios-toggle {
+  padding      : 5px 12px;
+  border-radius: var(--radius-sm);
+  border       : 1px solid var(--border);
+  background   : var(--surface);
+  color        : var(--muted);
+  font-size    : .72rem;
+  font-weight  : 500;
+  cursor       : pointer;
+  transition   : all .15s;
+}
+.resultado-comentarios-toggle:hover { border-color: var(--accent); color: var(--accent); background: #fffbeb; }
+.resultado-comentarios-toggle.tiene-comentarios { color: var(--accent2); border-color: var(--accent2); }
+.resultado-comentarios-panel {
+  display      : none;
+  margin-top   : 10px;
+  padding-top  : 10px;
+  border-top   : 1px dashed var(--border);
+}
+.resultado-comentarios-panel.abierto { display: block; }
+.comentario-item { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.comentario-item:last-of-type { border-bottom: none; }
+.comentario-meta { font-size: .68rem; color: var(--muted); margin-bottom: 3px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.comentario-usuario { font-weight: 600; color: var(--accent2); }
+.comentario-texto { font-size: .78rem; color: var(--text); line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+.comentario-acciones { display: flex; gap: 10px; margin-top: 4px; }
+.comentario-accion-link {
+  font-size    : .68rem;
+  color        : var(--muted);
+  cursor       : pointer;
+  background   : none;
+  border       : none;
+  padding      : 0;
+  font-family  : inherit;
+  text-decoration: underline;
+}
+.comentario-accion-link:hover { color: var(--accent); }
+.comentario-accion-link.borrar:hover { color: var(--danger); }
+.comentario-sin { font-size: .74rem; color: var(--muted); padding: 4px 0 10px; }
+.comentario-nuevo { margin-top: 8px; }
+.comentario-nuevo textarea {
+  width        : 100%;
+  min-height   : 54px;
+  border       : 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding      : 7px 9px;
+  font-family  : inherit;
+  font-size    : .78rem;
+  color        : var(--text);
+  resize       : vertical;
+  box-sizing   : border-box;
+}
+.comentario-nuevo textarea:focus { outline: none; border-color: var(--accent); }
+.comentario-nuevo-acciones { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+.comentario-edicion textarea { margin-bottom: 6px; }
 
 .resultados-vacio, .resultados-cargando {
   text-align: center;
@@ -1723,7 +1811,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v5.0.2</div>
+    <div class="caja-version">v5.1.0</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -1780,7 +1868,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.0.2</span>
+    <span class="hdr-version">v5.1.0</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
@@ -1864,7 +1952,7 @@ input { font-family: inherit; }
 <div id="pantalla-mapa">
   <header id="mapa-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.0.2</span>
+    <span class="hdr-version">v5.1.0</span>
     <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
   </header>
@@ -1892,7 +1980,7 @@ input { font-family: inherit; }
 <div id="pantalla-grafo">
   <header id="grafo-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.0.2</span>
+    <span class="hdr-version">v5.1.0</span>
     <span class="hdr-obra-nombre" id="grafo-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeGrafo()">← Buscador</button>
   </header>
@@ -1938,7 +2026,7 @@ input { font-family: inherit; }
 <div id="pantalla-dashboard">
   <header id="dashboard-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.0.2</span>
+    <span class="hdr-version">v5.1.0</span>
     <span class="hdr-obra-nombre" id="dashboard-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeDashboard()">← Buscador</button>
   </header>
@@ -1995,7 +2083,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.0.2</span>
+    <span class="hdr-version">v5.1.0</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -2621,8 +2709,15 @@ function renderResultados() {
     return;
   }
 
+  // v5.1.0 — cada renderResultados() es una búsqueda nueva: se
+  // resetean los acordeones de Comentarios abiertos y cualquier
+  // edición en curso (mismo criterio que perder cualquier otro
+  // estado de UI transitorio al recargar la lista).
+  panelesAbiertos = new Set();
+  comentarioEditandoPorIdx = {};
+
   cont.innerHTML = '';
-  resultadosActuales.forEach(function (r) {
+  resultadosActuales.forEach(function (r, idx) {
     const card = document.createElement('div');
     card.className = 'resultado-card';
 
@@ -2633,6 +2728,7 @@ function renderResultados() {
     const idDrive = extraerIdDrive(r.link);
     const linkVer = r.link || '#';
     const linkDescargar = idDrive ? ('https://drive.google.com/uc?export=download&id=' + idDrive) : (r.link || '#');
+    const cantComentarios = (r.comentarios || []).length;
 
     card.innerHTML =
       '<div class="resultado-doc">' + escapeHtml(r.documento) + '</div>' +
@@ -2643,7 +2739,9 @@ function renderResultados() {
       '<div class="resultado-acciones">' +
       '<a class="btn-resultado ver" href="' + linkVer + '" target="_blank" rel="noopener">Ver</a>' +
       '<a class="btn-resultado" href="' + linkDescargar + '" target="_blank" rel="noopener">Descargar</a>' +
-      '</div>';
+      '<button class="resultado-comentarios-toggle' + (cantComentarios > 0 ? ' tiene-comentarios' : '') + '" id="comentarios-toggle-' + idx + '" onclick="toggleComentarios(' + idx + ')">💬 Comentarios (' + cantComentarios + ')</button>' +
+      '</div>' +
+      '<div class="resultado-comentarios-panel" id="comentarios-panel-' + idx + '">' + renderComentariosPanelHtml(r, idx) + '</div>';
 
     cont.appendChild(card);
   });
@@ -2652,6 +2750,200 @@ function renderResultados() {
 function resaltarSnippet(snippet) {
   // El backend marca la coincidencia entre **asteriscos** (armarSnippet_)
   return escapeHtml(snippet || '').replace(/\*\*(.+?)\*\*/g, '<mark>$1</mark>');
+}
+
+// ── COMENTARIOS EN DOCUMENTOS (v5.1.0) ──────────────────────
+// Acordeón dentro de cada tarjeta de resultado (una tarjeta = una
+// página; el diseño cerrado con Ale lo puso ahí tal cual, aunque
+// varias tarjetas puedan compartir Documento+Carpeta). Los datos ya
+// viajan en cada resultado (r.comentarios), sin fetch aparte al
+// abrir el acordeón — solo se llama al backend al agregar/editar/
+// borrar. panelesAbiertos/comentarioEditandoPorIdx se resetean en
+// cada renderResultados() (ver ahí).
+let panelesAbiertos = new Set();       // Set<idx> de tarjetas con el acordeón abierto
+let comentarioEditandoPorIdx = {};     // idx -> comentarioId en edición (o ausente)
+
+function toggleComentarios(idx) {
+  const panel = document.getElementById('comentarios-panel-' + idx);
+  if (!panel) return;
+  if (panelesAbiertos.has(idx)) {
+    panelesAbiertos.delete(idx);
+    panel.classList.remove('abierto');
+  } else {
+    panelesAbiertos.add(idx);
+    panel.classList.add('abierto');
+  }
+}
+
+function formatearFechaComentario(iso) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString('es-AR') + ' ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+  } catch (err) {
+    return iso || '';
+  }
+}
+
+function renderComentariosPanelHtml(r, idx) {
+  const comentarios = r.comentarios || [];
+  const editandoId = comentarioEditandoPorIdx[idx];
+  let html = '';
+
+  if (comentarios.length === 0) {
+    html += '<div class="comentario-sin">Todavía no hay comentarios en este documento.</div>';
+  } else {
+    comentarios.forEach(function (c) {
+      if (c.id === editandoId) {
+        html +=
+          '<div class="comentario-item comentario-edicion">' +
+          '<textarea id="comentario-edit-textarea-' + idx + '">' + escapeHtml(c.texto) + '</textarea>' +
+          '<div class="comentario-nuevo-acciones">' +
+          '<button class="comentario-accion-link" onclick="cancelarEdicionComentario(' + idx + ')">Cancelar</button>' +
+          '<button class="btn-resultado" onclick="guardarEdicionComentario(' + idx + ', \'' + c.id + '\')">Guardar</button>' +
+          '</div></div>';
+      } else {
+        const esPropio = c.usuario === emailActual;
+        html +=
+          '<div class="comentario-item">' +
+          '<div class="comentario-meta"><span class="comentario-usuario">' + escapeHtml(c.usuario) + '</span>' +
+          '<span>' + formatearFechaComentario(c.fecha) + (c.fechaEdicion ? ' (editado)' : '') + '</span></div>' +
+          '<div class="comentario-texto">' + escapeHtml(c.texto) + '</div>' +
+          (esPropio
+            ? '<div class="comentario-acciones">' +
+              '<button class="comentario-accion-link" onclick="iniciarEdicionComentario(' + idx + ', \'' + c.id + '\')">Editar</button>' +
+              '<button class="comentario-accion-link borrar" onclick="borrarComentarioUI(' + idx + ', \'' + c.id + '\')">Borrar</button>' +
+              '</div>'
+            : '') +
+          '</div>';
+      }
+    });
+  }
+
+  html +=
+    '<div class="comentario-nuevo">' +
+    '<textarea id="comentario-nuevo-textarea-' + idx + '" placeholder="Agregar un comentario…"></textarea>' +
+    '<div class="comentario-nuevo-acciones">' +
+    '<button class="btn-resultado" onclick="agregarComentarioUI(' + idx + ')">Agregar</button>' +
+    '</div></div>';
+
+  return html;
+}
+
+/**
+ * Un mismo Documento+Carpeta puede tener varias tarjetas visibles
+ * (una por página matcheada) — al agregar/editar/borrar un
+ * comentario se actualizan TODAS, no solo la tarjeta donde se hizo
+ * la acción, para que quede consistente sin tener que re-buscar.
+ */
+function actualizarComentariosEnTarjetas(documento, carpeta, comentarios) {
+  resultadosActuales.forEach(function (r, i) {
+    if (r.documento !== documento || r.carpeta !== carpeta) return;
+    r.comentarios = comentarios;
+    delete comentarioEditandoPorIdx[i];
+
+    const panel = document.getElementById('comentarios-panel-' + i);
+    if (panel) panel.innerHTML = renderComentariosPanelHtml(r, i);
+
+    const toggle = document.getElementById('comentarios-toggle-' + i);
+    if (toggle) {
+      toggle.textContent = '💬 Comentarios (' + comentarios.length + ')';
+      toggle.classList.toggle('tiene-comentarios', comentarios.length > 0);
+    }
+  });
+}
+
+async function agregarComentarioUI(idx) {
+  const r = resultadosActuales[idx];
+  if (!r) return;
+  const ta = document.getElementById('comentario-nuevo-textarea-' + idx);
+  const texto = (ta.value || '').trim();
+  if (!texto) return;
+
+  ta.disabled = true;
+  try {
+    const resp = await llamarBackend('agregarComentario', {
+      obraId: obraActual.obraId, email: emailActual,
+      documento: r.documento, carpeta: r.carpeta, texto: texto
+    });
+    if (resp.ok) {
+      actualizarComentariosEnTarjetas(r.documento, r.carpeta, resp.comentarios);
+      panelesAbiertos.add(idx); // se agregó desde acá, se mantiene abierto
+      const panel = document.getElementById('comentarios-panel-' + idx);
+      if (panel) panel.classList.add('abierto');
+    } else {
+      alert(resp.error || 'Error al agregar el comentario.');
+      ta.disabled = false;
+    }
+  } catch (err) {
+    alert('Sin conexión. Revisá tu internet e intentá de nuevo.');
+    ta.disabled = false;
+  }
+}
+
+function iniciarEdicionComentario(idx, comentarioId) {
+  comentarioEditandoPorIdx[idx] = comentarioId;
+  const r = resultadosActuales[idx];
+  const panel = document.getElementById('comentarios-panel-' + idx);
+  if (panel && r) panel.innerHTML = renderComentariosPanelHtml(r, idx);
+}
+
+function cancelarEdicionComentario(idx) {
+  delete comentarioEditandoPorIdx[idx];
+  const r = resultadosActuales[idx];
+  const panel = document.getElementById('comentarios-panel-' + idx);
+  if (panel && r) panel.innerHTML = renderComentariosPanelHtml(r, idx);
+}
+
+async function guardarEdicionComentario(idx, comentarioId) {
+  const r = resultadosActuales[idx];
+  if (!r) return;
+  const ta = document.getElementById('comentario-edit-textarea-' + idx);
+  const texto = (ta.value || '').trim();
+  if (!texto) return;
+
+  ta.disabled = true;
+  try {
+    const resp = await llamarBackend('editarComentario', {
+      obraId: obraActual.obraId, email: emailActual,
+      documento: r.documento, carpeta: r.carpeta,
+      comentarioId: comentarioId, texto: texto
+    });
+    if (resp.ok) {
+      panelesAbiertos.add(idx);
+      actualizarComentariosEnTarjetas(r.documento, r.carpeta, resp.comentarios);
+      const panel = document.getElementById('comentarios-panel-' + idx);
+      if (panel) panel.classList.add('abierto');
+    } else {
+      alert(resp.error || 'Error al editar el comentario.');
+      ta.disabled = false;
+    }
+  } catch (err) {
+    alert('Sin conexión. Revisá tu internet e intentá de nuevo.');
+    ta.disabled = false;
+  }
+}
+
+async function borrarComentarioUI(idx, comentarioId) {
+  const r = resultadosActuales[idx];
+  if (!r) return;
+  if (!confirm('¿Borrar este comentario? No se puede deshacer.')) return;
+
+  try {
+    const resp = await llamarBackend('borrarComentario', {
+      obraId: obraActual.obraId, email: emailActual,
+      documento: r.documento, carpeta: r.carpeta, comentarioId: comentarioId
+    });
+    if (resp.ok) {
+      panelesAbiertos.add(idx);
+      actualizarComentariosEnTarjetas(r.documento, r.carpeta, resp.comentarios);
+      const panel = document.getElementById('comentarios-panel-' + idx);
+      if (panel) panel.classList.add('abierto');
+    } else {
+      alert(resp.error || 'Error al borrar el comentario.');
+    }
+  } catch (err) {
+    alert('Sin conexión. Revisá tu internet e intentá de nuevo.');
+  }
 }
 
 function extraerIdDrive(url) {
@@ -3485,17 +3777,29 @@ function dashDims(svgEl) {
 function mostrarTooltipDash(event, texto) {
   const el = document.getElementById('dash-tooltip');
   el.textContent = texto;
-  el.style.left = (event.clientX + 14) + 'px';
-  el.style.top = (event.clientY + 14) + 'px';
   el.style.display = 'block';
+  posicionarTooltipDash(event, el);
 }
 function moverTooltipDash(event) {
-  const el = document.getElementById('dash-tooltip');
-  el.style.left = (event.clientX + 14) + 'px';
-  el.style.top = (event.clientY + 14) + 'px';
+  posicionarTooltipDash(event, document.getElementById('dash-tooltip'));
 }
 function ocultarTooltipDash() {
   document.getElementById('dash-tooltip').style.display = 'none';
+}
+// v5.1.0 — FIX: cerca del borde derecho de la pantalla, el tooltip
+// se cortaba (se dibujaba fuera del viewport). Se mide el ancho real
+// del tooltip YA con el texto puesto (por eso se llama después de
+// setear textContent + display:block) y si no entra a la derecha del
+// cursor, se flipea hacia la izquierda.
+function posicionarTooltipDash(event, el) {
+  const margen = 14;
+  const anchoTooltip = el.offsetWidth;
+  let left = event.clientX + margen;
+  if (left + anchoTooltip > window.innerWidth) {
+    left = event.clientX - margen - anchoTooltip;
+  }
+  el.style.left = Math.max(0, left) + 'px';
+  el.style.top = (event.clientY + margen) + 'px';
 }
 
 // v5.0.2 — heatmap de actividad, reemplaza dibujarLineChart para
