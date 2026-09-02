@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v5.2.0</title>
+<title>BDC — Buscador Documental de Contrato v5.3.0</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,7 +17,43 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
-  index_bdc_v5_2_0.html — v5.2.0 (02-sep-2026)
+  index_bdc_v5_3_0.html — v5.3.0 (02-sep-2026) — Tanda 1
+
+  QUÉ CAMBIÓ EN v5.3.0 (respecto a v5.2.0) — Tanda 1 de los puntos
+  relevados por Ale tras probar v5.2.0: 3 ajustes chicos anotados +
+  Toggle modo listado (diseño cerrado antes de codear) + 2 fixes
+  puntuales (b y c).
+   - Fix: textarea de edición de un comentario ahora tiene el mismo
+     estilo que el de "Agregar comentario" (antes quedaba con el
+     estilo crudo del navegador — bug real dentro del fix de yapa de
+     v5.2.0).
+   - NUEVO — Toast al marcar/desmarcar un favorito: mensaje breve no
+     bloqueante, se desvanece solo a los ~2s, sin botón de cerrar.
+   - Estrella de favorito rediseñada: más grande, color dorado propio
+     (--star/--star-fill) SIEMPRE visible (antes el ☆ sin marcar era
+     gris apagado, casi invisible entre el resto de íconos).
+   - NUEVO — Toggle "📋 Modo listado" (3er y último punto grande de la
+     ronda post-v5.0.2): junto a "Palabras sueltas" en las opciones de
+     búsqueda. Activo, lista TODOS los documentos de la obra
+     alfabéticamente por nombre (una tarjeta = un documento, agrupa
+     todas sus páginas — a diferencia de la búsqueda normal donde una
+     tarjeta = una página), filtrando por NOMBRE en vez de contenido.
+     Se combina con Etiquetas/Carpetas y con "Solo favoritos"; mientras
+     está activo, "Palabra completa"/"Palabras sueltas" se grisan (no
+     aplican a un filtro por nombre). Backend: listarDocumentosObra_
+     nueva (bdc_gas_v5_3_0.gs).
+   - Fix (b): "Crear nueva Obra" ahora crea indice_documental con las
+     columnas Comentarios y Favoritos desde el vamos — antes una obra
+     nueva quedaba sin esas columnas hasta la primera migración no
+     destructiva (asegurarColumnasIndice_).
+   - NUEVO (c): botón "🔄 Actualizar" junto al selector de Etiquetas en
+     la pantalla de carga — vuelve a pedir el catálogo al backend sin
+     recargar la página (motivado por un caso real: error de conexión
+     visible al crear una etiqueta que en realidad SÍ se había
+     guardado en el backend).
+   - Pendiente, sin diseñar aún: punto (a) — marcas configurables
+     desde el Sheet Maestro para Documentos Vacíos (Tanda 2, depende
+     de que Ale cree la hoja tipos_marca_manual).
 
   QUÉ CAMBIÓ EN v5.2.0 (respecto a v5.1.1) — Favoritos (diseño
   cerrado con Ale antes de codear): por usuario (privado), viven en
@@ -686,6 +722,11 @@
   --tag-fg   : #92400e;
   --tag-sel  : #d97706;
   --tag-sfg  : #ffffff;
+  /* v5.3.0 — color dedicado de la estrella de Favoritos, más dorado
+     y saturado que --accent (que ya se usa para muchos otros estados
+     activos), para que la estrella se distinga por sí sola. */
+  --star     : #ca8a04;
+  --star-fill: #fbbf24;
   /* v5.1.0 — resaltado de coincidencias de búsqueda (<mark>): antes
      compartía --tag-bg/--tag-fg (ámbar) con las etiquetas, lo que
      confundía. Familia de azul, exclusiva del resaltado. */
@@ -1069,20 +1110,30 @@ input { font-family: inherit; }
 .resultado-comentarios-toggle.tiene-comentarios { background: var(--accent2); }
 
 /* v5.2.0 — estrella de Favoritos, mismo tamaño/forma de píldora que
-   el toggle de Comentarios, al lado */
+   el toggle de Comentarios, al lado.
+   v5.3.0 — más grande y con color dorado propio (--star) SIEMPRE
+   visible (antes el ☆ sin marcar era gris apagado, casi invisible
+   entre el resto de íconos de la tarjeta); marcado pasa a estrella
+   sólida rellena sobre fondo dorado claro, en vez del texto ámbar
+   fino que tenía antes. */
 .resultado-favorito-toggle {
-  padding      : 5px 9px;
+  padding      : 4px 10px;
   border-radius: 99px;
-  border       : 1px solid var(--border);
+  border       : 1px solid #fde68a;
   background   : var(--surface);
-  color        : var(--muted);
-  font-size    : .78rem;
+  color        : var(--star);
+  font-size    : 1.05rem;
   line-height  : 1;
   cursor       : pointer;
   transition   : all .15s;
 }
-.resultado-favorito-toggle:hover { border-color: var(--accent); }
-.resultado-favorito-toggle.marcado { border-color: var(--accent); background: #fffbeb; color: var(--accent); }
+.resultado-favorito-toggle:hover { border-color: var(--star); transform: scale(1.08); }
+.resultado-favorito-toggle.marcado {
+  border-color: var(--star);
+  background  : var(--star-fill);
+  color        : #fff;
+  text-shadow  : 0 0 1px rgba(0,0,0,.15);
+}
 .resultado-comentarios-panel {
   display      : none;
   margin-top   : 10px;
@@ -1143,7 +1194,23 @@ input { font-family: inherit; }
 .comentario-nuevo textarea:focus { outline: none; border-color: var(--accent); }
 .comentario-nuevo button, .btn-comentario-mini { padding: 0 12px; border-radius: 6px; background: var(--accent); color: #fff; border: none; font-size: .72rem; font-weight: 600; cursor: pointer; }
 .comentario-nuevo button:hover, .btn-comentario-mini:hover { background: #b45309; }
-.comentario-edicion textarea { width: 100%; margin-bottom: 6px; box-sizing: border-box; margin-top: 4px; }
+.comentario-edicion textarea {
+  width        : 100%;
+  min-height   : 34px;
+  max-height   : 90px;
+  border       : 1px solid var(--border);
+  border-radius: 6px;
+  padding      : 6px 8px;
+  font-family  : inherit;
+  font-size    : .76rem;
+  color        : var(--text);
+  resize       : vertical;
+  box-sizing   : border-box;
+  background   : var(--surface);
+  margin-top   : 4px;
+  margin-bottom: 6px;
+}
+.comentario-edicion textarea:focus { outline: none; border-color: var(--accent); }
 .comentario-edicion-acciones { display: flex; justify-content: flex-end; align-items: center; gap: 12px; }
 
 /* v5.1.1 — modal genérico (mostrarConfirm/mostrarAviso), mismo
@@ -1181,6 +1248,30 @@ input { font-family: inherit; }
 .btn-dialogo-aceptar:hover { background: #b45309; }
 .btn-dialogo-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
 .btn-dialogo-danger:hover { background: #b91c1c; }
+
+/* v5.3.0 — toast genérico (no bloqueante, se desvanece solo).
+   Centrado abajo, sobre el resto de la UI pero sin tapar controles
+   fijos de header/búsqueda. Un toast nuevo reemplaza al anterior en
+   vez de apilarse (ver mostrarToast en el script). */
+.toast {
+  position       : fixed;
+  left           : 50%;
+  bottom         : 28px;
+  transform      : translateX(-50%) translateY(12px);
+  background     : var(--accent2);
+  color          : #fff;
+  font-size      : .78rem;
+  font-weight    : 600;
+  padding        : 10px 18px;
+  border-radius  : 99px;
+  box-shadow     : var(--shadow-md);
+  opacity        : 0;
+  pointer-events : none;
+  transition     : opacity .2s ease, transform .2s ease;
+  z-index        : 300;
+  white-space    : nowrap;
+}
+.toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 .resultados-vacio, .resultados-cargando {
   text-align: center;
@@ -1938,7 +2029,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v5.2.0</div>
+    <div class="caja-version">v5.3.0</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -1995,7 +2086,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.2.0</span>
+    <span class="hdr-version">v5.3.0</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
@@ -2039,6 +2130,16 @@ input { font-family: inherit; }
             <span class="switch-track"></span>
           </span>
           <label id="lbl-palabras-sueltas" for="chk-palabras-sueltas" class="deshabilitada">Palabras sueltas</label>
+          <!-- v5.3.0 — Toggle modo listado: lista TODOS los documentos
+               alfabéticamente por nombre, filtrando por nombre en vez
+               de contenido. Mientras está activo, deshabilita "Palabra
+               completa"/"Palabras sueltas" (no aplican a un filtro por
+               nombre) — ver actualizarEstadoOpcionesBusqueda(). -->
+          <span class="switch-wrap">
+            <input type="checkbox" id="chk-modo-listado" onchange="onCambioModoListado()">
+            <span class="switch-track"></span>
+          </span>
+          <label id="lbl-modo-listado" for="chk-modo-listado">📋 Modo listado</label>
           <!-- v5.2.0 — Favoritos: filtro combinable con lo demás, se
                dispara como cualquier otra opción (ver ejecutarBusqueda). -->
           <span class="switch-wrap">
@@ -2086,7 +2187,7 @@ input { font-family: inherit; }
 <div id="pantalla-mapa">
   <header id="mapa-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.2.0</span>
+    <span class="hdr-version">v5.3.0</span>
     <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
   </header>
@@ -2114,7 +2215,7 @@ input { font-family: inherit; }
 <div id="pantalla-grafo">
   <header id="grafo-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.2.0</span>
+    <span class="hdr-version">v5.3.0</span>
     <span class="hdr-obra-nombre" id="grafo-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeGrafo()">← Buscador</button>
   </header>
@@ -2160,7 +2261,7 @@ input { font-family: inherit; }
 <div id="pantalla-dashboard">
   <header id="dashboard-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.2.0</span>
+    <span class="hdr-version">v5.3.0</span>
     <span class="hdr-obra-nombre" id="dashboard-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeDashboard()">← Buscador</button>
   </header>
@@ -2217,7 +2318,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.2.0</span>
+    <span class="hdr-version">v5.3.0</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -2242,7 +2343,10 @@ input { font-family: inherit; }
       <div id="explorador-sync"></div>
       <div id="explorador-lista"></div>
       <div id="explorador-etiquetas">
-        <div class="carga-seccion-titulo">Etiquetas manuales para este lote (opcional)</div>
+        <div class="carga-seccion-titulo">
+          <span>Etiquetas manuales para este lote (opcional)</span>
+          <button id="btn-actualizar-etiquetas" class="faceta-limpiar visible" onclick="cargarEtiquetasDisponiblesCarga()" title="Volver a pedir la lista de etiquetas al servidor">🔄 Actualizar</button>
+        </div>
         <div id="etiquetas-checkboxes" class="etiquetas-pill-grid"></div>
         <div id="etiqueta-nueva-fila">
           <input type="text" id="input-etiqueta-nueva" placeholder="Nueva etiqueta…" maxlength="40" onkeydown="if(event.key==='Enter'){event.preventDefault();agregarEtiquetaNueva();}">
@@ -2316,6 +2420,12 @@ input { font-family: inherit; }
     <div class="dialogo-botones" id="dialogo-botones"></div>
   </div>
 </div>
+
+<!-- ═══════════════ TOAST genérico (v5.3.0) — mostrarToast ═══════════════
+     No bloqueante (a diferencia del dialogo-overlay de arriba): aparece,
+     se desvanece solo a los ~2s, sin botón para cerrar. Pensado primero
+     para Favoritos, reutilizable para lo que siga después. -->
+<div id="toast" class="toast"></div>
 
 <!-- v3.1.0 — D3 (bundle completo) vía CDN, para el Mapa Documental
      (d3-hierarchy: layout de árbol; d3-zoom: pan/zoom), en reemplazo
@@ -2686,6 +2796,8 @@ function mostrarBuscador() {
   document.getElementById('input-buscar').value = '';
   document.getElementById('chk-palabra-completa').checked = false;
   document.getElementById('chk-palabras-sueltas').checked = false;
+  document.getElementById('chk-modo-listado').checked = false; // v5.3.0
+  document.getElementById('input-buscar').placeholder = 'Buscar en el pliego, circulares, especificaciones...';
   facetasSeleccionadas.etiquetas.clear();
   facetasSeleccionadas.carpetas.clear();
   resultadosActuales = [];
@@ -2742,13 +2854,31 @@ function actualizarEstadoOpcionesBusqueda() {
   const lblSueltas = document.getElementById('lbl-palabras-sueltas');
   const nPalabras = input.value.trim() ? input.value.trim().split(/\s+/).filter(Boolean).length : 0;
   const multiTermino = nPalabras >= 2;
+  // v5.3.0 — con Modo listado activo, "Palabra completa"/"Palabras
+  // sueltas" no aplican (el filtro pasa a ser por nombre, no por
+  // contenido) — se grisan sin importar cuántas palabras haya.
+  const modoListado = document.getElementById('chk-modo-listado').checked;
 
-  chkSueltas.disabled = !multiTermino;
-  lblSueltas.classList.toggle('deshabilitada', !multiTermino);
+  chkSueltas.disabled = !multiTermino || modoListado;
+  lblSueltas.classList.toggle('deshabilitada', !multiTermino || modoListado);
 
-  const modoAndActivo = multiTermino && chkSueltas.checked;
-  chkCompleta.disabled = modoAndActivo;
-  lblCompleta.classList.toggle('deshabilitada', modoAndActivo);
+  const modoAndActivo = multiTermino && chkSueltas.checked && !modoListado;
+  chkCompleta.disabled = modoAndActivo || modoListado;
+  lblCompleta.classList.toggle('deshabilitada', modoAndActivo || modoListado);
+}
+
+// v5.3.0 — Toggle modo listado: al activarse/desactivarse, recalcula
+// el estado grisado de Palabra completa/Palabras sueltas, cambia el
+// placeholder del buscador para dejar claro que ahora filtra por
+// NOMBRE, y dispara la búsqueda de una (mismo criterio que "Solo
+// favoritos": sin nada más tipeado, lista directamente).
+function onCambioModoListado() {
+  const activo = document.getElementById('chk-modo-listado').checked;
+  document.getElementById('input-buscar').placeholder = activo
+    ? 'Filtrar por nombre de documento...'
+    : 'Buscar en el pliego, circulares, especificaciones...';
+  actualizarEstadoOpcionesBusqueda();
+  ejecutarBusqueda();
 }
 
 // v1.3: limpia el input y vuelve a buscar por el mismo camino que
@@ -2766,9 +2896,14 @@ function limpiarBusqueda() {
 
 function ejecutarBusqueda() {
   const termino = document.getElementById('input-buscar').value.trim();
+  const soloFavoritos = document.getElementById('chk-solo-favoritos').checked; // v5.2.0
+  const modoListado = document.getElementById('chk-modo-listado').checked; // v5.3.0
+  if (modoListado) {
+    buscarModoListado(termino, soloFavoritos);
+    return;
+  }
   const palabraCompleta = document.getElementById('chk-palabra-completa').checked;
   const palabrasSueltas = document.getElementById('chk-palabras-sueltas').checked && !document.getElementById('chk-palabras-sueltas').disabled;
-  const soloFavoritos = document.getElementById('chk-solo-favoritos').checked; // v5.2.0
   buscar(termino, palabraCompleta, palabrasSueltas, soloFavoritos);
 }
 
@@ -2845,6 +2980,36 @@ async function buscar(termino, palabraCompleta, palabrasSueltas, soloFavoritos) 
   }
 }
 
+// v5.3.0 — Toggle modo listado: a diferencia de buscar() de arriba,
+// SIEMPRE llama al backend (aunque no haya filtroNombre/facetas/
+// favoritos) — el punto del modo listado es traer TODOS los
+// documentos de la obra, no requerir un criterio mínimo. Se combina
+// igual con Etiquetas/Carpetas (facetasSeleccionadas) y con
+// soloFavoritos, mismo mecanismo que buscar().
+async function buscarModoListado(filtroNombre, soloFavoritos) {
+  const etiquetas = Array.from(facetasSeleccionadas.etiquetas);
+  const carpetas = Array.from(facetasSeleccionadas.carpetas);
+
+  hayBusquedaActiva = true;
+  document.getElementById('lista-resultados').innerHTML = '<div class="resultados-cargando">Cargando...</div>';
+  document.getElementById('buscar-contador').textContent = '';
+  try {
+    const r = await llamarBackend('listarDocumentosObra', {
+      obraId: obraActual.obraId, email: emailActual, filtroNombre: filtroNombre,
+      etiquetas: etiquetas, carpetas: carpetas, soloFavoritos: !!soloFavoritos
+    });
+    if (!r.ok) {
+      document.getElementById('lista-resultados').innerHTML = '<div class="resultados-vacio">Error al listar.</div>';
+      return;
+    }
+    resultadosActuales = r.documentos;
+    renderResultadosListado();
+    renderFacetas(); // v4.2.0 — mismo mecanismo de Facetas dinámicas, reutilizado tal cual
+  } catch (err) {
+    document.getElementById('lista-resultados').innerHTML = '<div class="resultados-vacio">Sin conexión. Revisá tu internet e intentá de nuevo.</div>';
+  }
+}
+
 function etiquetasDeFila(r) {
   return String(r.etiquetas || '').split(',').map(function (e) { return e.trim(); }).filter(Boolean);
 }
@@ -2902,6 +3067,59 @@ function renderResultados() {
 function resaltarSnippet(snippet) {
   // El backend marca la coincidencia entre **asteriscos** (armarSnippet_)
   return escapeHtml(snippet || '').replace(/\*\*(.+?)\*\*/g, '<mark>$1</mark>');
+}
+
+// v5.3.0 — Toggle modo listado: variante de renderResultados() para
+// resultadosActuales = documentos (uno por Documento+Carpeta, sin
+// Pagina/Texto/snippet — ver listarDocumentosObra_). Reusa las mismas
+// funciones de Comentarios/Favoritos (toggleComentarios, toggleFavoritoUI,
+// renderComentariosPanelHtml) porque todas operan sobre r.documento/
+// r.carpeta/r.comentarios/r.favoritoPropio, presentes acá también.
+function renderResultadosListado() {
+  const cont = document.getElementById('lista-resultados');
+
+  document.getElementById('buscar-contador').textContent =
+    resultadosActuales.length + (resultadosActuales.length === 1 ? ' documento' : ' documentos');
+
+  if (resultadosActuales.length === 0) {
+    cont.innerHTML = '<div class="resultados-vacio">No se encontraron documentos.</div>';
+    return;
+  }
+
+  panelesAbiertos = new Set();
+  comentarioEditandoPorIdx = {};
+
+  cont.innerHTML = '';
+  resultadosActuales.forEach(function (r, idx) {
+    const card = document.createElement('div');
+    card.className = 'resultado-card';
+
+    const etiquetasHtml = etiquetasDeFila(r).map(function (e) {
+      return '<span class="resultado-etiqueta-chip">' + escapeHtml(e) + '</span>';
+    }).join('');
+
+    const idDrive = extraerIdDrive(r.link);
+    const linkVer = r.link || '#';
+    const linkDescargar = idDrive ? ('https://drive.google.com/uc?export=download&id=' + idDrive) : (r.link || '#');
+    const cantComentarios = (r.comentarios || []).length;
+
+    // Sin Pagina/snippet (no aplica: es un filtro por nombre, no por
+    // contenido) — la meta muestra solo la Carpeta, igual que arriba
+    // pero sin "Pág. N".
+    card.innerHTML =
+      '<div class="resultado-doc">' + escapeHtml(r.documento) + '</div>' +
+      (r.carpeta ? '<div class="resultado-meta"><span class="resultado-carpeta">' + escapeHtml(r.carpeta) + '</span></div>' : '') +
+      (etiquetasHtml ? '<div class="resultado-etiquetas">' + etiquetasHtml + '</div>' : '') +
+      '<div class="resultado-acciones">' +
+      '<a class="btn-resultado ver" href="' + linkVer + '" target="_blank" rel="noopener">Ver</a>' +
+      '<a class="btn-resultado" href="' + linkDescargar + '" target="_blank" rel="noopener">Descargar</a>' +
+      '<button class="resultado-comentarios-toggle' + (cantComentarios > 0 ? ' tiene-comentarios' : '') + '" id="comentarios-toggle-' + idx + '" onclick="toggleComentarios(' + idx + ')">💬 ' + cantComentarios + '</button>' +
+      '<button class="resultado-favorito-toggle' + (r.favoritoPropio ? ' marcado' : '') + '" id="favorito-toggle-' + idx + '" onclick="toggleFavoritoUI(' + idx + ')" aria-label="Marcar favorito">' + (r.favoritoPropio ? '★' : '☆') + '</button>' +
+      '</div>' +
+      '<div class="resultado-comentarios-panel" id="comentarios-panel-' + idx + '">' + renderComentariosPanelHtml(r, idx) + '</div>';
+
+    cont.appendChild(card);
+  });
 }
 
 // ── COMENTARIOS EN DOCUMENTOS (v5.1.0, rediseñado en v5.1.1) ────
@@ -3149,6 +3367,7 @@ async function toggleFavoritoUI(idx) {
           b.classList.toggle('marcado', resp.marcado);
         }
       });
+      mostrarToast(resp.marcado ? 'Agregado a favoritos' : 'Quitado de favoritos');
     } else {
       await mostrarAviso(resp.error || 'Error al marcar el favorito.');
     }
@@ -4568,6 +4787,24 @@ function cerrarDialogo(resultado) {
     dialogoResolve = null;
     r(!!resultado);
   }
+}
+
+// ── TOAST genérico (v5.3.0) — mostrarToast ──────────────────
+// No bloqueante, se desvanece solo (~2s), sin botón de cerrar.
+// Si se dispara un toast nuevo mientras el anterior sigue visible
+// (ej. doble click rápido en dos estrellas distintas), el nuevo
+// reemplaza al anterior en vez de apilarse.
+let toastTimeoutId = null;
+
+function mostrarToast(mensaje) {
+  const el = document.getElementById('toast');
+  el.textContent = mensaje;
+  el.classList.add('visible');
+  if (toastTimeoutId) clearTimeout(toastTimeoutId);
+  toastTimeoutId = setTimeout(function () {
+    el.classList.remove('visible');
+    toastTimeoutId = null;
+  }, 2000);
 }
 
 // ── Ejecutar carga / relectura ──────────────────────────────
