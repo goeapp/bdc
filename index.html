@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v5.1.0</title>
+<title>BDC — Buscador Documental de Contrato v5.1.1</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,7 +17,36 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
-  index_bdc_v5_1_0.html — v5.1.0 (02-sep-2026)
+  index_bdc_v5_1_1.html — v5.1.1 (02-sep-2026)
+
+  QUÉ CAMBIÓ EN v5.1.1 (respecto a v5.1.0) — Ale probó v5.1.0:
+  Comentarios funcionó, pero pidió 3 mejoras de UX (conversadas antes
+  de codear, con mockup del Visualizer): panel de Comentarios muy
+  burdo/grande, y el borrar/sin-conexión abrían el confirm()/alert()
+  nativo del navegador en vez de un modal propio de la PWA.
+   - NUEVO — modal genérico reutilizable (mostrarConfirm/mostrarAviso,
+     #dialogo-overlay), mismo lenguaje visual que el modal ya
+     existente de confirmar carga (confirm-carga-overlay), pero
+     genérico para cualquier uso futuro (ya queda listo para
+     Favoritos). mostrarConfirm devuelve una Promise<boolean>
+     (true=aceptó); mostrarAviso devuelve Promise<void>. Reemplaza
+     confirm()/alert() SOLO en los 3 puntos de Comentarios (borrar,
+     errores de agregar/editar/borrar, sin conexión) — el resto de la
+     app sigue con alert()/confirm() nativos, fuera de alcance de
+     esta entrega puntual.
+   - Panel de Comentarios rediseñado: nace anidado en una caja con
+     fondo propio (en vez de flotar con borde punteado), cada
+     comentario con avatar circular de iniciales (nombre+apellido de
+     la sesión al comentar, con fallback a email si no hay nombre) +
+     borde izquierdo de color (propio=navy, ajeno=gris), y el textarea
+     de "nuevo comentario" + botón "Agregar" en una sola fila en vez
+     de apilados (menos alto vacío). Toggle de la tarjeta pasa a
+     píldora oscura compacta con ícono.
+   - Backend: agregarComentario_ ahora recibe también "nombre"
+     (bdc_gas_v5_1_1.gs) — se guarda junto al comentario para mostrar
+     y sacar iniciales sin tener que resolver el nombre de cada
+     usuario en ningún otro lado. "usuario" (email) sigue siendo la
+     identidad real para autoría.
 
   QUÉ CAMBIÓ EN v5.1.0 (respecto a v5.0.2) — Ale probó v5.0.2 y trajo
   7 puntos; se diseñó y cerró el de 4 antes de codear (ver
@@ -998,35 +1027,53 @@ input { font-family: inherit; }
 .btn-resultado:hover { border-color: var(--accent); color: var(--accent); background: #fffbeb; }
 .btn-resultado.ver { border-color: var(--accent2); }
 
-/* v5.1.0 — acordeón de Comentarios dentro de la tarjeta de resultado */
+/* v5.1.1 — acordeón de Comentarios rediseñado: panel anidado en caja
+   propia (antes flotaba con borde punteado), avatar circular de
+   iniciales por comentario, fila inline para agregar. */
 .resultado-comentarios-toggle {
-  padding      : 5px 12px;
-  border-radius: var(--radius-sm);
-  border       : 1px solid var(--border);
-  background   : var(--surface);
-  color        : var(--muted);
-  font-size    : .72rem;
-  font-weight  : 500;
+  padding      : 5px 10px;
+  border-radius: 99px;
+  border       : 1px solid var(--accent2);
+  background   : var(--accent2);
+  color        : #fff;
+  font-size    : .68rem;
+  font-weight  : 600;
   cursor       : pointer;
-  transition   : all .15s;
+  transition   : opacity .15s;
 }
-.resultado-comentarios-toggle:hover { border-color: var(--accent); color: var(--accent); background: #fffbeb; }
-.resultado-comentarios-toggle.tiene-comentarios { color: var(--accent2); border-color: var(--accent2); }
+.resultado-comentarios-toggle:hover { opacity: .85; }
+.resultado-comentarios-toggle.tiene-comentarios { background: var(--accent2); }
 .resultado-comentarios-panel {
   display      : none;
   margin-top   : 10px;
-  padding-top  : 10px;
-  border-top   : 1px dashed var(--border);
+  padding      : 10px 12px;
+  background   : var(--bg);
+  border-radius: var(--radius-sm);
 }
 .resultado-comentarios-panel.abierto { display: block; }
-.comentario-item { padding: 8px 0; border-bottom: 1px solid var(--border); }
-.comentario-item:last-of-type { border-bottom: none; }
-.comentario-meta { font-size: .68rem; color: var(--muted); margin-bottom: 3px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.comentario-usuario { font-weight: 600; color: var(--accent2); }
-.comentario-texto { font-size: .78rem; color: var(--text); line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
-.comentario-acciones { display: flex; gap: 10px; margin-top: 4px; }
+.comentario-item { display: flex; gap: 8px; padding: 6px 0 6px 8px; margin-bottom: 4px; border-left: 3px solid var(--border); }
+.comentario-item.propio { border-left-color: var(--accent2); }
+.comentario-avatar {
+  width        : 22px;
+  height       : 22px;
+  border-radius: 50%;
+  background   : var(--muted);
+  color        : #fff;
+  font-size    : .6rem;
+  font-weight  : 600;
+  display      : flex;
+  align-items  : center;
+  justify-content: center;
+  flex-shrink  : 0;
+}
+.comentario-item.propio .comentario-avatar { background: var(--accent2); }
+.comentario-cuerpo { flex: 1; min-width: 0; }
+.comentario-meta { font-size: .68rem; color: var(--muted); margin-bottom: 1px; }
+.comentario-meta b { font-weight: 600; color: var(--accent2); }
+.comentario-texto { font-size: .76rem; color: var(--text); line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
+.comentario-acciones { display: flex; gap: 10px; margin-top: 2px; }
 .comentario-accion-link {
-  font-size    : .68rem;
+  font-size    : .64rem;
   color        : var(--muted);
   cursor       : pointer;
   background   : none;
@@ -1037,23 +1084,64 @@ input { font-family: inherit; }
 }
 .comentario-accion-link:hover { color: var(--accent); }
 .comentario-accion-link.borrar:hover { color: var(--danger); }
-.comentario-sin { font-size: .74rem; color: var(--muted); padding: 4px 0 10px; }
-.comentario-nuevo { margin-top: 8px; }
+.comentario-sin { font-size: .74rem; color: var(--muted); padding: 2px 0 8px; }
+.comentario-nuevo { display: flex; gap: 6px; margin-top: 4px; }
 .comentario-nuevo textarea {
-  width        : 100%;
-  min-height   : 54px;
+  flex         : 1;
+  min-height   : 34px;
+  max-height   : 90px;
   border       : 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding      : 7px 9px;
+  border-radius: 6px;
+  padding      : 6px 8px;
   font-family  : inherit;
-  font-size    : .78rem;
+  font-size    : .76rem;
   color        : var(--text);
   resize       : vertical;
   box-sizing   : border-box;
+  background   : var(--surface);
 }
 .comentario-nuevo textarea:focus { outline: none; border-color: var(--accent); }
-.comentario-nuevo-acciones { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
-.comentario-edicion textarea { margin-bottom: 6px; }
+.comentario-nuevo button, .btn-comentario-mini { padding: 0 12px; border-radius: 6px; background: var(--accent); color: #fff; border: none; font-size: .72rem; font-weight: 600; cursor: pointer; }
+.comentario-nuevo button:hover, .btn-comentario-mini:hover { background: #b45309; }
+.comentario-edicion { flex-direction: column; }
+.comentario-edicion textarea { width: 100%; margin-bottom: 6px; box-sizing: border-box; }
+.comentario-edicion-acciones { display: flex; justify-content: flex-end; align-items: center; gap: 12px; }
+
+/* v5.1.1 — modal genérico (mostrarConfirm/mostrarAviso), mismo
+   lenguaje visual que confirm-carga-overlay pero reutilizable para
+   cualquier caso (Comentarios ahora, Favoritos y lo que siga
+   después) — no reemplaza confirm-carga-overlay, que sigue con su
+   propio flujo específico de carga. */
+#dialogo-overlay {
+  display        : none;
+  position       : fixed;
+  inset          : 0;
+  background     : rgba(15,23,42,.4);
+  z-index        : 260;
+  align-items    : center;
+  justify-content: center;
+}
+#dialogo-overlay.visible { display: flex; }
+.dialogo-caja {
+  background   : var(--surface);
+  border-radius: var(--radius);
+  box-shadow   : var(--shadow-md);
+  padding      : 22px;
+  max-width    : 320px;
+  width        : 100%;
+}
+.dialogo-cabecera { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.dialogo-icono { font-size: 1.05rem; line-height: 1; }
+.dialogo-title { font-size: .9rem; font-weight: 700; color: var(--text); }
+.dialogo-desc { font-size: .8rem; color: var(--text); line-height: 1.6; margin-bottom: 18px; }
+.dialogo-botones { display: flex; gap: 10px; }
+.dialogo-botones button { flex: 1; padding: 9px; border-radius: var(--radius-sm); font-size: .8rem; font-weight: 600; border: 1px solid var(--border); cursor: pointer; }
+.btn-dialogo-cancelar { background: var(--surface); color: var(--text); }
+.btn-dialogo-cancelar:hover { background: var(--bg); }
+.btn-dialogo-aceptar { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-dialogo-aceptar:hover { background: #b45309; }
+.btn-dialogo-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btn-dialogo-danger:hover { background: #b91c1c; }
 
 .resultados-vacio, .resultados-cargando {
   text-align: center;
@@ -1811,7 +1899,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v5.1.0</div>
+    <div class="caja-version">v5.1.1</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -1868,7 +1956,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.1.0</span>
+    <span class="hdr-version">v5.1.1</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
@@ -1952,7 +2040,7 @@ input { font-family: inherit; }
 <div id="pantalla-mapa">
   <header id="mapa-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.1.0</span>
+    <span class="hdr-version">v5.1.1</span>
     <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
   </header>
@@ -1980,7 +2068,7 @@ input { font-family: inherit; }
 <div id="pantalla-grafo">
   <header id="grafo-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.1.0</span>
+    <span class="hdr-version">v5.1.1</span>
     <span class="hdr-obra-nombre" id="grafo-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeGrafo()">← Buscador</button>
   </header>
@@ -2026,7 +2114,7 @@ input { font-family: inherit; }
 <div id="pantalla-dashboard">
   <header id="dashboard-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.1.0</span>
+    <span class="hdr-version">v5.1.1</span>
     <span class="hdr-obra-nombre" id="dashboard-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeDashboard()">← Buscador</button>
   </header>
@@ -2083,7 +2171,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.1.0</span>
+    <span class="hdr-version">v5.1.1</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -2168,6 +2256,18 @@ input { font-family: inherit; }
       <button class="btn-confirm-cancelar" onclick="cerrarConfirmCarga()">Cancelar</button>
       <button class="btn-confirm-aceptar" id="btn-confirm-aceptar">Confirmar</button>
     </div>
+  </div>
+</div>
+
+<!-- ═══════════════ DIALOG genérico (v5.1.1) — mostrarConfirm/mostrarAviso ═══════════════ -->
+<div id="dialogo-overlay" onclick="if(event.target===this) cerrarDialogo(false)">
+  <div class="dialogo-caja">
+    <div class="dialogo-cabecera">
+      <span class="dialogo-icono" id="dialogo-icono"></span>
+      <span class="dialogo-title" id="dialogo-title"></span>
+    </div>
+    <div class="dialogo-desc" id="dialogo-desc"></div>
+    <div class="dialogo-botones" id="dialogo-botones"></div>
   </div>
 </div>
 
@@ -2739,7 +2839,7 @@ function renderResultados() {
       '<div class="resultado-acciones">' +
       '<a class="btn-resultado ver" href="' + linkVer + '" target="_blank" rel="noopener">Ver</a>' +
       '<a class="btn-resultado" href="' + linkDescargar + '" target="_blank" rel="noopener">Descargar</a>' +
-      '<button class="resultado-comentarios-toggle' + (cantComentarios > 0 ? ' tiene-comentarios' : '') + '" id="comentarios-toggle-' + idx + '" onclick="toggleComentarios(' + idx + ')">💬 Comentarios (' + cantComentarios + ')</button>' +
+      '<button class="resultado-comentarios-toggle' + (cantComentarios > 0 ? ' tiene-comentarios' : '') + '" id="comentarios-toggle-' + idx + '" onclick="toggleComentarios(' + idx + ')">💬 ' + cantComentarios + '</button>' +
       '</div>' +
       '<div class="resultado-comentarios-panel" id="comentarios-panel-' + idx + '">' + renderComentariosPanelHtml(r, idx) + '</div>';
 
@@ -2752,7 +2852,7 @@ function resaltarSnippet(snippet) {
   return escapeHtml(snippet || '').replace(/\*\*(.+?)\*\*/g, '<mark>$1</mark>');
 }
 
-// ── COMENTARIOS EN DOCUMENTOS (v5.1.0) ──────────────────────
+// ── COMENTARIOS EN DOCUMENTOS (v5.1.0, rediseñado en v5.1.1) ────
 // Acordeón dentro de cada tarjeta de resultado (una tarjeta = una
 // página; el diseño cerrado con Ale lo puso ahí tal cual, aunque
 // varias tarjetas puedan compartir Documento+Carpeta). Los datos ya
@@ -2784,6 +2884,22 @@ function formatearFechaComentario(iso) {
   }
 }
 
+// v5.1.1 — iniciales para el avatar circular del comentario: 1ra
+// letra del primer nombre + 1ra del último apellido si hay
+// nombreApellido guardado en el comentario ("Ale Perin" -> AP); con
+// un solo término, las 2 primeras letras; sin nombre (comentarios
+// viejos o sesión sin nombreApellido cargado), cae al email.
+function inicialesDeNombre(nombre, email) {
+  const base = String(nombre || '').trim();
+  if (base) {
+    const partes = base.split(/\s+/).filter(Boolean);
+    if (partes.length >= 2) return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
+    return partes[0].substring(0, 2).toUpperCase();
+  }
+  const em = String(email || '').trim();
+  return em ? em.substring(0, 2).toUpperCase() : '??';
+}
+
 function renderComentariosPanelHtml(r, idx) {
   const comentarios = r.comentarios || [];
   const editandoId = comentarioEditandoPorIdx[idx];
@@ -2797,16 +2913,18 @@ function renderComentariosPanelHtml(r, idx) {
         html +=
           '<div class="comentario-item comentario-edicion">' +
           '<textarea id="comentario-edit-textarea-' + idx + '">' + escapeHtml(c.texto) + '</textarea>' +
-          '<div class="comentario-nuevo-acciones">' +
+          '<div class="comentario-edicion-acciones">' +
           '<button class="comentario-accion-link" onclick="cancelarEdicionComentario(' + idx + ')">Cancelar</button>' +
-          '<button class="btn-resultado" onclick="guardarEdicionComentario(' + idx + ', \'' + c.id + '\')">Guardar</button>' +
+          '<button class="btn-comentario-mini" onclick="guardarEdicionComentario(' + idx + ', \'' + c.id + '\')">Guardar</button>' +
           '</div></div>';
       } else {
         const esPropio = c.usuario === emailActual;
+        const nombreMostrado = c.nombre || c.usuario;
         html +=
-          '<div class="comentario-item">' +
-          '<div class="comentario-meta"><span class="comentario-usuario">' + escapeHtml(c.usuario) + '</span>' +
-          '<span>' + formatearFechaComentario(c.fecha) + (c.fechaEdicion ? ' (editado)' : '') + '</span></div>' +
+          '<div class="comentario-item' + (esPropio ? ' propio' : '') + '">' +
+          '<div class="comentario-avatar">' + escapeHtml(inicialesDeNombre(c.nombre, c.usuario)) + '</div>' +
+          '<div class="comentario-cuerpo">' +
+          '<div class="comentario-meta"><b>' + escapeHtml(nombreMostrado) + '</b> · ' + formatearFechaComentario(c.fecha) + (c.fechaEdicion ? ' (editado)' : '') + '</div>' +
           '<div class="comentario-texto">' + escapeHtml(c.texto) + '</div>' +
           (esPropio
             ? '<div class="comentario-acciones">' +
@@ -2814,7 +2932,7 @@ function renderComentariosPanelHtml(r, idx) {
               '<button class="comentario-accion-link borrar" onclick="borrarComentarioUI(' + idx + ', \'' + c.id + '\')">Borrar</button>' +
               '</div>'
             : '') +
-          '</div>';
+          '</div></div>';
       }
     });
   }
@@ -2822,9 +2940,8 @@ function renderComentariosPanelHtml(r, idx) {
   html +=
     '<div class="comentario-nuevo">' +
     '<textarea id="comentario-nuevo-textarea-' + idx + '" placeholder="Agregar un comentario…"></textarea>' +
-    '<div class="comentario-nuevo-acciones">' +
-    '<button class="btn-resultado" onclick="agregarComentarioUI(' + idx + ')">Agregar</button>' +
-    '</div></div>';
+    '<button class="btn-comentario-mini" onclick="agregarComentarioUI(' + idx + ')">Agregar</button>' +
+    '</div>';
 
   return html;
 }
@@ -2846,7 +2963,7 @@ function actualizarComentariosEnTarjetas(documento, carpeta, comentarios) {
 
     const toggle = document.getElementById('comentarios-toggle-' + i);
     if (toggle) {
-      toggle.textContent = '💬 Comentarios (' + comentarios.length + ')';
+      toggle.textContent = '💬 ' + comentarios.length;
       toggle.classList.toggle('tiene-comentarios', comentarios.length > 0);
     }
   });
@@ -2861,8 +2978,9 @@ async function agregarComentarioUI(idx) {
 
   ta.disabled = true;
   try {
+    const sesion = leerSesion();
     const resp = await llamarBackend('agregarComentario', {
-      obraId: obraActual.obraId, email: emailActual,
+      obraId: obraActual.obraId, email: emailActual, nombre: (sesion && sesion.nombreApellido) || '',
       documento: r.documento, carpeta: r.carpeta, texto: texto
     });
     if (resp.ok) {
@@ -2871,12 +2989,12 @@ async function agregarComentarioUI(idx) {
       const panel = document.getElementById('comentarios-panel-' + idx);
       if (panel) panel.classList.add('abierto');
     } else {
-      alert(resp.error || 'Error al agregar el comentario.');
       ta.disabled = false;
+      await mostrarAviso(resp.error || 'Error al agregar el comentario.');
     }
   } catch (err) {
-    alert('Sin conexión. Revisá tu internet e intentá de nuevo.');
     ta.disabled = false;
+    await mostrarAviso('Revisá tu internet e intentá de nuevo.', 'Sin conexión');
   }
 }
 
@@ -2914,19 +3032,20 @@ async function guardarEdicionComentario(idx, comentarioId) {
       const panel = document.getElementById('comentarios-panel-' + idx);
       if (panel) panel.classList.add('abierto');
     } else {
-      alert(resp.error || 'Error al editar el comentario.');
       ta.disabled = false;
+      await mostrarAviso(resp.error || 'Error al editar el comentario.');
     }
   } catch (err) {
-    alert('Sin conexión. Revisá tu internet e intentá de nuevo.');
     ta.disabled = false;
+    await mostrarAviso('Revisá tu internet e intentá de nuevo.', 'Sin conexión');
   }
 }
 
 async function borrarComentarioUI(idx, comentarioId) {
   const r = resultadosActuales[idx];
   if (!r) return;
-  if (!confirm('¿Borrar este comentario? No se puede deshacer.')) return;
+  const confirmado = await mostrarConfirm('Borrar comentario', '¿Borrar este comentario? No se puede deshacer.', { danger: true, textoAceptar: 'Borrar' });
+  if (!confirmado) return;
 
   try {
     const resp = await llamarBackend('borrarComentario', {
@@ -2939,10 +3058,10 @@ async function borrarComentarioUI(idx, comentarioId) {
       const panel = document.getElementById('comentarios-panel-' + idx);
       if (panel) panel.classList.add('abierto');
     } else {
-      alert(resp.error || 'Error al borrar el comentario.');
+      await mostrarAviso(resp.error || 'Error al borrar el comentario.');
     }
   } catch (err) {
-    alert('Sin conexión. Revisá tu internet e intentá de nuevo.');
+    await mostrarAviso('Revisá tu internet e intentá de nuevo.', 'Sin conexión');
   }
 }
 
@@ -4312,6 +4431,49 @@ function pedirConfirmacionCarga(modo) {
 
 function cerrarConfirmCarga() {
   document.getElementById('confirm-carga-overlay').classList.remove('visible');
+}
+
+// ── DIALOG genérico (v5.1.1) — mostrarConfirm/mostrarAviso ─────
+// Reemplaza confirm()/alert() nativos del navegador por un modal
+// propio, mismo lenguaje visual que confirm-carga-overlay pero
+// reutilizable para cualquier caso (por ahora solo Comentarios; ya
+// queda listo para Favoritos y lo que siga). Basado en Promise para
+// poder usarse con await en vez de callbacks.
+let dialogoResolve = null;
+
+function mostrarConfirm(titulo, desc, opciones) {
+  opciones = opciones || {};
+  return new Promise(function (resolve) {
+    dialogoResolve = resolve;
+    document.getElementById('dialogo-icono').textContent = '';
+    document.getElementById('dialogo-title').textContent = titulo;
+    document.getElementById('dialogo-desc').textContent = desc;
+    document.getElementById('dialogo-botones').innerHTML =
+      '<button class="btn-dialogo-cancelar" onclick="cerrarDialogo(false)">' + escapeHtml(opciones.textoCancelar || 'Cancelar') + '</button>' +
+      '<button class="' + (opciones.danger ? 'btn-dialogo-danger' : 'btn-dialogo-aceptar') + '" onclick="cerrarDialogo(true)">' + escapeHtml(opciones.textoAceptar || 'Aceptar') + '</button>';
+    document.getElementById('dialogo-overlay').classList.add('visible');
+  });
+}
+
+function mostrarAviso(mensaje, titulo) {
+  return new Promise(function (resolve) {
+    dialogoResolve = resolve;
+    document.getElementById('dialogo-icono').textContent = '⚠️';
+    document.getElementById('dialogo-title').textContent = titulo || 'Aviso';
+    document.getElementById('dialogo-desc').textContent = mensaje;
+    document.getElementById('dialogo-botones').innerHTML =
+      '<button class="btn-dialogo-aceptar" style="flex:1" onclick="cerrarDialogo(true)">Aceptar</button>';
+    document.getElementById('dialogo-overlay').classList.add('visible');
+  });
+}
+
+function cerrarDialogo(resultado) {
+  document.getElementById('dialogo-overlay').classList.remove('visible');
+  if (dialogoResolve) {
+    const r = dialogoResolve;
+    dialogoResolve = null;
+    r(!!resultado);
+  }
 }
 
 // ── Ejecutar carga / relectura ──────────────────────────────
