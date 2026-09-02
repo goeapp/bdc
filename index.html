@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v5.0.1</title>
+<title>BDC — Buscador Documental de Contrato v5.0.2</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,7 +17,26 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
-  index_bdc_v5_0_1.html — v5.0.1 (02-sep-2026)
+  index_bdc_v5_0_2.html — v5.0.2 (02-sep-2026)
+
+  QUÉ CAMBIÓ EN v5.0.2 (respecto a v5.0.1) — Ale probó v5.0.1: "mucho
+  mejor" en general. Único pedido: los gráficos de línea de "Carga
+  de documentos" y "Actividad de búsquedas" no tenían sentido con
+  datos tan dispersos en el tiempo (a veces 1 solo día con
+  actividad) — mejor un heatmap tipo "Días Perdidos" de ClimaObra.
+  Backend SIN CAMBIOS (bdc_gas_v5_0_0.gs se reentrega igual, entrega
+  puramente de frontend).
+   - Los 2 paneles de línea+área se reemplazan por un heatmap: tira
+     de 60 celdas (ventana FIJA de últimos 60 días, incluye los días
+     sin registro) en 3 niveles de color relativos al máximo del
+     período de esa serie (0 = sin uso; hasta 50% del pico = uso
+     bajo; más de 50% = uso alto). Tooltip propio (reusa
+     #dash-tooltip) con fecha completa + cantidad exacta al hover.
+   - Nueva función dibujarHeatmap(svgId, datos, etiquetaUnidad),
+     reemplaza dibujarLineChart (eliminada, sin otros usos). CSS de
+     ejes/línea/área/punto (dash-eje, dash-linea, dash-area)
+     eliminado por no tener más uso; agregado dash-heatmap-celda y
+     dash-heatmap-texto.
 
   QUÉ CAMBIÓ EN v5.0.1 (respecto a v5.0.0) — Ale probó el Dashboard
   (2 capturas): "funcionó, pero se ve rústico, no es interactivo, no
@@ -1308,12 +1327,14 @@ input { font-family: inherit; }
 .grafo-nodo-texto.visible { opacity: 1; }
 
 /* ─────────────────────────────────────────────────
-   PANTALLA — DASHBOARD (v5.0.1, consulta)
+   PANTALLA — DASHBOARD (consulta)
    Grilla de KPIs + paneles con gráficos D3 (mismo bundle ya cargado
    para Mapa Documental/Grafo, sin dependencias nuevas).
    v5.0.1 — más compacto (KPIs y paneles más chicos, grilla más
    densa) para que entre más de un vistazo con menos scroll; tooltip
    propio (#dash-tooltip) en vez del title nativo del navegador.
+   v5.0.2 — heatmap de actividad en vez de línea/área para los
+   paneles de tiempo (ver dibujarHeatmap).
 ───────────────────────────────────────────────── */
 #pantalla-dashboard { display: none; flex-direction: column; height: 100vh; }
 #dashboard-header { height: var(--header-h); background: var(--accent2); display: flex; align-items: center; padding: 0 18px; gap: 12px; flex-shrink: 0; border-bottom: 1px solid rgba(255,255,255,.06); }
@@ -1385,12 +1406,16 @@ input { font-family: inherit; }
 }
 
 /* Ejes/series de los gráficos D3 */
-.dash-eje path, .dash-eje line { stroke: var(--border); }
-.dash-eje text { font-family: 'DM Sans', sans-serif; font-size: 10px; fill: var(--muted); }
-.dash-linea { fill: none; stroke: var(--accent2); stroke-width: 2px; }
-.dash-area { fill: var(--accent2); opacity: .08; }
 .dash-barra { fill: var(--accent); }
 .dash-barra-texto { font-family: 'DM Sans', sans-serif; font-size: 10.5px; fill: var(--text); }
+
+/* v5.0.2 — heatmap de actividad (reemplaza los gráficos de línea de
+   "Carga de documentos" y "Actividad de búsquedas"): tira de 60
+   celdas, una por día, en 3 niveles de color relativos al máximo
+   del período. */
+.dash-heatmap-celda { transition: opacity .1s; }
+.dash-heatmap-celda:hover { opacity: .75; }
+.dash-heatmap-texto { font-family: 'DM Sans', sans-serif; font-size: 10px; fill: var(--muted); }
 
 /* ─────────────────────────────────────────────────
    PANTALLA DE CARGA (v2.1.0, solo admin) — 2 columnas
@@ -1698,7 +1723,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v5.0.1</div>
+    <div class="caja-version">v5.0.2</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -1755,7 +1780,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.0.1</span>
+    <span class="hdr-version">v5.0.2</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
@@ -1839,7 +1864,7 @@ input { font-family: inherit; }
 <div id="pantalla-mapa">
   <header id="mapa-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.0.1</span>
+    <span class="hdr-version">v5.0.2</span>
     <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
   </header>
@@ -1867,7 +1892,7 @@ input { font-family: inherit; }
 <div id="pantalla-grafo">
   <header id="grafo-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.0.1</span>
+    <span class="hdr-version">v5.0.2</span>
     <span class="hdr-obra-nombre" id="grafo-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeGrafo()">← Buscador</button>
   </header>
@@ -1913,7 +1938,7 @@ input { font-family: inherit; }
 <div id="pantalla-dashboard">
   <header id="dashboard-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.0.1</span>
+    <span class="hdr-version">v5.0.2</span>
     <span class="hdr-obra-nombre" id="dashboard-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeDashboard()">← Buscador</button>
   </header>
@@ -1970,7 +1995,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.0.1</span>
+    <span class="hdr-version">v5.0.2</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -3394,7 +3419,7 @@ async function cargarDashboard() {
 
 function renderDashboard(d) {
   renderDashboardKpis(d.kpis);
-  dibujarLineChart('dash-chart-carga', d.cargaPorDia, 'documento' + (d.kpis.totalDocumentos === 1 ? '' : 's'));
+  dibujarHeatmap('dash-chart-carga', d.cargaPorDia, 'documento' + (d.kpis.totalDocumentos === 1 ? '' : 's'));
   dibujarBarrasHorizontales('dash-chart-etiquetas', d.topEtiquetas);
   dibujarBarrasHorizontales('dash-chart-carpetas', d.topCarpetas, true);
   dibujarDonut('dash-chart-familias', d.familias);
@@ -3407,7 +3432,7 @@ function renderDashboard(d) {
   renderDashboardLista('dash-lista-terminos', d.busquedas.topTerminos, function (it) {
     return { nombre: it.nombre, sub: '', valor: String(it.cantidad) };
   }, 'Todavía no hay búsquedas registradas.');
-  dibujarLineChart('dash-chart-busquedas', d.busquedas.actividadPorDia, 'búsqueda' + (d.busquedas.total === 1 ? '' : 's'));
+  dibujarHeatmap('dash-chart-busquedas', d.busquedas.actividadPorDia, 'búsqueda' + (d.busquedas.total === 1 ? '' : 's'));
 }
 
 function renderDashboardKpis(kpis) {
@@ -3456,7 +3481,7 @@ function dashDims(svgEl) {
 }
 
 // v5.0.1 — tooltip propio (reemplaza el title nativo del navegador,
-// lento y sin estilo) compartido por los 3 tipos de gráfico.
+// lento y sin estilo) compartido por los tipos de gráfico.
 function mostrarTooltipDash(event, texto) {
   const el = document.getElementById('dash-tooltip');
   el.textContent = texto;
@@ -3473,55 +3498,88 @@ function ocultarTooltipDash() {
   document.getElementById('dash-tooltip').style.display = 'none';
 }
 
-function dibujarLineChart(svgId, datos, etiquetaUnidad) {
+// v5.0.2 — heatmap de actividad, reemplaza dibujarLineChart para
+// "Carga de documentos" y "Actividad de búsquedas". Ventana FIJA de
+// 60 días (hoy incluido, incluye los días sin registro — a
+// diferencia de la línea anterior, que solo mostraba los días con
+// datos). 3 niveles de color relativos al máximo del período de
+// esa serie: 0 = sin uso, hasta 50% del pico = uso bajo, más de
+// 50% = uso alto. Tooltip propio con fecha completa + cantidad
+// exacta al hover sobre cada celda.
+const DASH_HEATMAP_DIAS = 60;
+const DASH_HEATMAP_COLORES = ['var(--border)', 'rgba(15,23,42,.35)', 'var(--accent2)'];
+
+function dibujarHeatmap(svgId, datos, etiquetaUnidad) {
   const svgEl = document.getElementById(svgId);
   const svg = d3.select(svgEl);
   svg.selectAll('*').remove();
-  if (!datos || datos.length === 0) {
-    svg.append('text').attr('x', 12).attr('y', 20).attr('class', 'dash-lista-vacio').text('Sin datos todavía.');
-    return;
+
+  const formatoClave = d3.timeFormat('%Y-%m-%d');
+  const porFecha = {};
+  (datos || []).forEach(function (d) { porFecha[d.fecha] = d.cantidad; });
+
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const dias = d3.range(DASH_HEATMAP_DIAS - 1, -1, -1).map(function (offset) {
+    const fecha = d3.timeDay.offset(hoy, -offset);
+    return { fecha: fecha, cantidad: porFecha[formatoClave(fecha)] || 0 };
+  });
+
+  const maximo = d3.max(dias, function (d) { return d.cantidad; }) || 0;
+  const umbralAlto = maximo * 0.5;
+  function nivel(cantidad) {
+    if (cantidad === 0) return 0;
+    return cantidad > umbralAlto ? 2 : 1;
   }
+
   const { w, h } = dashDims(svgEl);
-  const innerW = Math.max(50, w - DASH_MARGEN.left - DASH_MARGEN.right);
-  const innerH = Math.max(50, h - DASH_MARGEN.top - DASH_MARGEN.bottom);
-  const g = svg.append('g').attr('transform', 'translate(' + DASH_MARGEN.left + ',' + DASH_MARGEN.top + ')');
+  const margen = { top: 10, right: 10, bottom: 22, left: 10 };
+  const innerW = Math.max(60, w - margen.left - margen.right);
+  const innerH = Math.max(20, h - margen.top - margen.bottom);
+  const gap = 2;
+  const anchoCelda = (innerW - gap * (DASH_HEATMAP_DIAS - 1)) / DASH_HEATMAP_DIAS;
+  const altoCelda = Math.min(30, Math.max(14, innerH - 20));
 
-  const parseFecha = d3.timeParse('%Y-%m-%d');
-  const puntos = datos.map(function (d) { return { fecha: parseFecha(d.fecha), cantidad: d.cantidad }; });
-
-  // v5.0.1 — FIX: con un solo día de datos, d3.extent devuelve el
-  // mismo valor como mín y máx -> el dominio de tiempo colapsa a
-  // ancho cero y no queda dónde dibujar la línea/área (solo se veía
-  // el punto suelto, reportado por Ale). Se pisa el dominio con ±1
-  // día de margen en ese caso puntual, para que el punto quede
-  // centrado con espacio real a los lados.
-  let dominioX = d3.extent(puntos, function (d) { return d.fecha; });
-  if (dominioX[0].getTime() === dominioX[1].getTime()) {
-    dominioX = [d3.timeDay.offset(dominioX[0], -1), d3.timeDay.offset(dominioX[0], 1)];
-  }
-  const x = d3.scaleTime().domain(dominioX).range([0, innerW]);
-  const y = d3.scaleLinear().domain([0, d3.max(puntos, function (d) { return d.cantidad; }) || 1]).nice().range([innerH, 0]);
-
-  const ejeX = d3.axisBottom(x).ticks(Math.min(6, puntos.length)).tickFormat(d3.timeFormat('%d/%m'));
-  const ejeY = d3.axisLeft(y).ticks(4);
-
-  g.append('g').attr('class', 'dash-eje').attr('transform', 'translate(0,' + innerH + ')').call(ejeX);
-  g.append('g').attr('class', 'dash-eje').call(ejeY);
-
-  const area = d3.area().x(function (d) { return x(d.fecha); }).y0(innerH).y1(function (d) { return y(d.cantidad); });
-  const linea = d3.line().x(function (d) { return x(d.fecha); }).y(function (d) { return y(d.cantidad); });
-
-  g.append('path').datum(puntos).attr('class', 'dash-area').attr('d', area);
-  g.append('path').datum(puntos).attr('class', 'dash-linea').attr('d', linea);
-
+  const g = svg.append('g').attr('transform', 'translate(' + margen.left + ',' + margen.top + ')');
   const formatoFecha = d3.timeFormat('%d/%m/%Y');
-  g.selectAll('circle.dash-punto').data(puntos).enter().append('circle')
-    .attr('class', 'dash-punto').attr('r', 4).attr('fill', 'var(--accent2)')
-    .attr('cx', function (d) { return x(d.fecha); }).attr('cy', function (d) { return y(d.cantidad); })
+  const formatoFechaCorta = d3.timeFormat('%d/%m');
+
+  g.selectAll('rect.dash-heatmap-celda').data(dias).enter().append('rect')
+    .attr('class', 'dash-heatmap-celda')
+    .attr('x', function (d, i) { return i * (anchoCelda + gap); })
+    .attr('y', 0)
+    .attr('width', anchoCelda)
+    .attr('height', altoCelda)
+    .attr('rx', Math.min(2, anchoCelda / 3))
+    .attr('fill', function (d) { return DASH_HEATMAP_COLORES[nivel(d.cantidad)]; })
     .style('cursor', 'default')
-    .on('mouseover', function (event, d) { mostrarTooltipDash(event, formatoFecha(d.fecha) + ' — ' + d.cantidad + ' ' + etiquetaUnidad); })
+    .on('mouseover', function (event, d) {
+      const texto = d.cantidad === 0
+        ? formatoFecha(d.fecha) + ' — sin ' + etiquetaUnidad
+        : formatoFecha(d.fecha) + ' — ' + d.cantidad + ' ' + etiquetaUnidad;
+      mostrarTooltipDash(event, texto);
+    })
     .on('mousemove', moverTooltipDash)
     .on('mouseout', ocultarTooltipDash);
+
+  // Fechas de los extremos de la ventana + leyenda de niveles, todo
+  // en una sola línea debajo de las celdas para no sumar alto.
+  const filaY = altoCelda + 16;
+  g.append('text').attr('x', 0).attr('y', filaY).attr('class', 'dash-heatmap-texto').text(formatoFechaCorta(dias[0].fecha));
+  g.append('text').attr('x', innerW).attr('y', filaY).attr('text-anchor', 'end').attr('class', 'dash-heatmap-texto').text(formatoFechaCorta(dias[dias.length - 1].fecha));
+
+  const leyenda = [
+    { texto: 'Sin uso', color: DASH_HEATMAP_COLORES[0] },
+    { texto: 'Uso bajo', color: DASH_HEATMAP_COLORES[1] },
+    { texto: 'Uso alto', color: DASH_HEATMAP_COLORES[2] }
+  ];
+  const anchoItem = 78;
+  const inicioLeyenda = innerW / 2 - (leyenda.length * anchoItem) / 2;
+  leyenda.forEach(function (it, i) {
+    const x = inicioLeyenda + i * anchoItem;
+    g.append('rect').attr('x', x).attr('y', filaY - 9).attr('width', 9).attr('height', 9).attr('rx', 2).attr('fill', it.color);
+    g.append('text').attr('x', x + 13).attr('y', filaY).attr('class', 'dash-heatmap-texto').text(it.texto);
+  });
 }
 
 function dibujarBarrasHorizontales(svgId, datos, esCarpeta) {
