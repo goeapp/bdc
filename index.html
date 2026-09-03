@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v5.4.1</title>
+<title>BDC — Buscador Documental de Contrato v5.4.2</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,7 +17,20 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
-  index_bdc_v5_4_1.html — v5.4.1 (03-sep-2026) — Tanda 2, fix post-prueba
+  index_bdc_v5_4_2.html — v5.4.2 (03-sep-2026) — Tanda 2, fix post-prueba #2
+
+  QUÉ CAMBIÓ EN v5.4.2 (respecto a v5.4.1) — Ale marcó 2 puntos más
+  probando v5.4.1:
+   - Cancelar/Guardar (edición de comentario) quedaban de distinta
+     altura: .comentario-accion-link tenía padding 4px10/.72rem y
+     .btn-comentario-mini 0 12px/.76rem — se unifican ambas a
+     6px 14px / .76rem / line-height 1 (el ancho sigue dependiendo
+     del texto de cada una, como corresponde).
+   - Menú "Acción ▾" de Documentos vacíos: un ítem largo (ej. "Cargar
+     como Hoja de Datos") se cortaba en 2 líneas porque el menú tenía
+     un ancho mínimo fijo (170px) sin nowrap. Se agrega
+     white-space:nowrap a .accion-menu-item — el menú ahora crece de
+     ancho lo que haga falta, sin cortar texto.
 
   QUÉ CAMBIÓ EN v5.4.1 (respecto a v5.4.0) — Ale probó v5.4.0 y marcó
   con capturas 3 botones que seguían con el look viejo pese al pedido
@@ -779,7 +792,7 @@
      activos), para que la estrella se distinga por sí sola. */
   --star     : #ca8a04;
   --star-fill: #fbbf24;
-  /* v5.4.1 — borde de los botones primarios (relleno naranja). La
+  /* v5.4.2 — borde de los botones primarios (relleno naranja). La
      primera versión usaba el mismo tono del hover (#b45309), pero
      quedaba casi invisible sobre el relleno --accent (#d97706): muy
      poca diferencia tonal para leerse como "con borde" a simple
@@ -1223,14 +1236,15 @@ input { font-family: inherit; }
 .comentario-texto { font-size: .76rem; color: var(--text); line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
 .comentario-acciones { display: flex; gap: 10px; margin-top: 2px; }
 .comentario-accion-link {
-  font-size    : .72rem;
+  font-size    : .76rem;
   font-weight  : 600;
   color        : var(--accent2);
   cursor       : pointer;
   background   : var(--surface);
   border       : 1px solid var(--accent2);
   border-radius: var(--radius-sm);
-  padding      : 4px 10px;
+  padding      : 6px 14px;
+  line-height  : 1;
   font-family  : inherit;
 }
 .comentario-accion-link:hover { background: var(--accent2); color: #fff; }
@@ -1253,7 +1267,7 @@ input { font-family: inherit; }
   background   : var(--surface);
 }
 .comentario-nuevo textarea:focus { outline: none; border-color: var(--accent); }
-.comentario-nuevo button, .btn-comentario-mini { padding: 0 12px; border-radius: 6px; background: var(--accent); color: #fff; border: 1px solid var(--accent-border); font-size: .76rem; font-weight: 600; cursor: pointer; }
+.comentario-nuevo button, .btn-comentario-mini { padding: 6px 14px; line-height: 1; border-radius: 6px; background: var(--accent); color: #fff; border: 1px solid var(--accent-border); font-size: .76rem; font-weight: 600; cursor: pointer; }
 .comentario-nuevo button:hover, .btn-comentario-mini:hover { background: #b45309; }
 .comentario-edicion textarea {
   width        : 100%;
@@ -1399,7 +1413,7 @@ input { font-family: inherit; }
 }
 .faceta-limpiar.visible { display: inline; }
 .faceta-limpiar:disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }
-/* v5.4.1 — #btn-actualizar-etiquetas deja de ser un link suelto
+/* v5.4.2 — #btn-actualizar-etiquetas deja de ser un link suelto
    (.faceta-limpiar de base) y pasa a botón chico con borde, mismo
    criterio de "siempre con borde" que el resto de los botones de
    acción; el resto de .faceta-limpiar (links de "Limpiar" de
@@ -1983,7 +1997,7 @@ input { font-family: inherit; }
 }
 .btn-carga:hover { background: #b45309; }
 .btn-carga:disabled { opacity: .5; cursor: not-allowed; }
-.btn-carga-secundario { background: var(--accent2); border-color: #475569; /* v5.4.1 — borde más claro que el navy de fondo, con más contraste que el primer intento (#1e293b se notaba poco) */ }
+.btn-carga-secundario { background: var(--accent2); border-color: #475569; /* v5.4.2 — borde más claro que el navy de fondo, con más contraste que el primer intento (#1e293b se notaba poco) */ }
 .btn-carga-secundario:hover { background: #1e293b; }
 
 #registro-carga-lista { display: flex; flex-direction: column; gap: 8px; }
@@ -2074,6 +2088,7 @@ input { font-family: inherit; }
   background   : var(--surface);
   color        : var(--text);
   font-size    : .78rem;
+  white-space  : nowrap; /* v5.4.2 — evita que un ítem largo (ej. "Cargar como Hoja de Datos") se corte en 2 líneas; el menú crece de ancho lo que haga falta */
 }
 .accion-menu-item:hover { background: var(--bg); }
 
@@ -2104,7 +2119,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v5.4.1</div>
+    <div class="caja-version">v5.4.2</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -2161,7 +2176,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.4.1</span>
+    <span class="hdr-version">v5.4.2</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
@@ -2262,7 +2277,7 @@ input { font-family: inherit; }
 <div id="pantalla-mapa">
   <header id="mapa-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.4.1</span>
+    <span class="hdr-version">v5.4.2</span>
     <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
   </header>
@@ -2290,7 +2305,7 @@ input { font-family: inherit; }
 <div id="pantalla-grafo">
   <header id="grafo-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.4.1</span>
+    <span class="hdr-version">v5.4.2</span>
     <span class="hdr-obra-nombre" id="grafo-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeGrafo()">← Buscador</button>
   </header>
@@ -2336,7 +2351,7 @@ input { font-family: inherit; }
 <div id="pantalla-dashboard">
   <header id="dashboard-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.4.1</span>
+    <span class="hdr-version">v5.4.2</span>
     <span class="hdr-obra-nombre" id="dashboard-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeDashboard()">← Buscador</button>
   </header>
@@ -2393,7 +2408,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.4.1</span>
+    <span class="hdr-version">v5.4.2</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -4584,7 +4599,7 @@ function mostrarPantallaCarga() {
   cargarNodoCarpeta(null);
   cargarEtiquetasDisponiblesCarga();
   cargarPendientes(); // para el badge del tab, aunque arranque en "Cargar documentos"
-  // v5.4.1 — catálogo de marcas manuales, se pide antes de cargarVacios()
+  // v5.4.2 — catálogo de marcas manuales, se pide antes de cargarVacios()
   // para que las cards ya salgan con el menú "Acción" completo.
   cargarTiposMarcaManual().then(cargarVacios);
 }
@@ -4594,7 +4609,7 @@ function mostrarPantallaCarga() {
 // visibles). Ahora se refresca el resumen de la obra al volver, y si
 // había una búsqueda o faceta activa, se vuelve a ejecutar para que
 // traiga lo recién indexado.
-// v5.4.1 — 2 fixes (Ale, probando v5.3.0):
+// v5.4.2 — 2 fixes (Ale, probando v5.3.0):
 //  (4) mientras se pide obtenerResumenObra() se veía un instante el
 //      placeholder/resultados viejos antes de asentarse — se cubre
 //      con el mismo spinner que ya usa el Mapa Documental.
@@ -5099,7 +5114,7 @@ async function reintentarPendiente(link, card, etiquetasManuales) {
 }
 
 // ── Panel 3 (v2.2.0): Documentos vacíos (persistente, documentos_vacios) ──
-// v5.4.1 — catálogo de marcas manuales (tipos_marca_manual del
+// v5.4.2 — catálogo de marcas manuales (tipos_marca_manual del
 // Maestro), pedido UNA vez al entrar a la pantalla de Carga (mismo
 // momento que las Etiquetas) y cacheado en memoria; reemplaza el
 // ítem fijo "Cargar como Plano" del menú "Acción" de cada card de
@@ -5165,7 +5180,7 @@ async function cargarVacios() {
 // solo listener global cierra cualquier dropdown abierto al hacer
 // clic afuera (más ítems se agregan solo sumando otro <button
 // class="accion-menu-item" data-accion="...">, sin tocar esta parte).
-// v5.4.1 — los ítems data-accion="marca" (uno por tipo del catálogo
+// v5.4.2 — los ítems data-accion="marca" (uno por tipo del catálogo
 // tipos_marca_manual) se cablean todos juntos, leyendo cada uno su
 // propio data-marca-interna.
 function configurarAccionDropdown(card, link, etiquetasManuales) {
@@ -5225,7 +5240,7 @@ async function reintentarVacio(link, card, etiquetasManuales) {
 // extraíble (no tiene sentido seguir reintentando la extracción).
 // v2.4.0 — se suma bloquearCargaUI alrededor de la llamada, mismo
 // criterio que reintentarVacio/reintentarPendiente.
-// v5.4.1 — generalizada a cualquier marca del catálogo
+// v5.4.2 — generalizada a cualquier marca del catálogo
 // tipos_marca_manual (antes solo "Plano" hardcodeado); marcaInterna
 // y etiquetaVisible vienen del ítem del menú que se clickeó.
 async function cargarComoMarcaManual(link, card, etiquetasManuales, marcaInterna, etiquetaVisible) {
