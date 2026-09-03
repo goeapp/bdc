@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v5.3.0</title>
+<title>BDC — Buscador Documental de Contrato v5.4.0</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,7 +17,41 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
-  index_bdc_v5_3_0.html — v5.3.0 (02-sep-2026) — Tanda 1
+  index_bdc_v5_4_0.html — v5.4.0 (03-sep-2026) — Tanda 2
+
+  QUÉ CAMBIÓ EN v5.4.0 (respecto a v5.3.0) — Tanda 2 completa, puntos
+  relevados por Ale tras probar v5.3.0 (diseño cerrado antes de
+  codear):
+   - NUEVO — Marcas configurables: el menú "Acción" de cada card de
+     Documentos vacíos deja el ítem fijo "Cargar como Plano" y arma
+     uno por cada fila del catálogo tipos_marca_manual del Maestro
+     (EtiquetaVisible/MarcaInterna) — se piden una vez al entrar a la
+     pantalla de Carga y quedan en memoria (tiposMarcaManualCache).
+     cargarComoPlano_ → cargarComoMarcaManual_ en el backend
+     (bdc_gas_v5_4_0.gs).
+   - Íconos: sacados 📋 de "Modo listado", ★ del label "Solo
+     favoritos" y 🔄 de "Actualizar" (etiquetas) — quedan en texto
+     plano, parejos con el resto de los toggles/botones de esa fila.
+     Se mantienen los íconos que son la función en sí (estrella de
+     favorito en cada tarjeta, 💬 de comentarios, flechas de
+     navegación).
+   - Bordes + tamaño homogéneo: nueva variable --accent-border;
+     agregado borde a los botones que no tenían (.btn-accion,
+     #btn-buscar, .btn-carga, .btn-carga-secundario, botón mini de
+     Comentarios); unificado el tamaño de .btn-resultado y
+     .btn-agregar-etiqueta con el resto de los botones chicos de
+     tarjeta (6px 14px / .76rem); #btn-actualizar-etiquetas pasa de
+     link suelto a botón chico con borde propio.
+   - Fix: spinner (reusa la animación .spinner del Mapa Documental)
+     en el panel de resultados mientras volverABuscador() espera la
+     respuesta de obtenerResumenObra() — antes se veía un instante el
+     estado viejo antes de asentarse.
+   - Fix (bug real reportado por Ale): con "Solo favoritos" (o "Modo
+     listado") como único filtro activo, volver de Cargar documentos
+     dejaba el toggle prendido pero SIN resultados — la condición
+     para re-ejecutar la búsqueda al volver solo miraba término/
+     Facetas, sin contemplar esos 2 checkboxes. Sumados a la
+     condición en volverABuscador().
 
   QUÉ CAMBIÓ EN v5.3.0 (respecto a v5.2.0) — Tanda 1 de los puntos
   relevados por Ale tras probar v5.2.0: 3 ajustes chicos anotados +
@@ -727,6 +761,10 @@
      activos), para que la estrella se distinga por sí sola. */
   --star     : #ca8a04;
   --star-fill: #fbbf24;
+  /* v5.4.0 — borde de los botones primarios (relleno naranja);
+     mismo tono que ya se usaba para el hover, para que el borde no
+     meta un color nuevo en la paleta. */
+  --accent-border: #b45309;
   /* v5.1.0 — resaltado de coincidencias de búsqueda (<mark>): antes
      compartía --tag-bg/--tag-fg (ámbar) con las etiquetas, lo que
      confundía. Familia de azul, exclusiva del resaltado. */
@@ -813,12 +851,12 @@ input { font-family: inherit; }
 
 .btn-accion {
   width        : 100%;
-  padding      : 11px 16px;
-  border       : none;
+  padding      : 10px 18px;
+  border       : 1px solid var(--accent-border);
   border-radius: var(--radius-sm);
   background   : var(--accent);
   color        : #fff;
-  font-size    : .85rem;
+  font-size    : .82rem;
   font-weight  : 600;
   transition   : background .15s, transform .1s;
 }
@@ -1002,7 +1040,7 @@ input { font-family: inherit; }
 #btn-limpiar-buscar:hover { background: var(--border); color: var(--text); }
 #btn-buscar {
   padding      : 10px 18px;
-  border       : none;
+  border       : 1px solid var(--accent-border);
   border-radius: var(--radius-sm);
   background   : var(--accent);
   color        : #fff;
@@ -1080,12 +1118,12 @@ input { font-family: inherit; }
 }
 .resultado-acciones { display: flex; gap: 8px; }
 .btn-resultado {
-  padding      : 5px 12px;
+  padding      : 6px 14px;
   border-radius: var(--radius-sm);
   border       : 1px solid var(--border);
   background   : var(--surface);
   color        : var(--text);
-  font-size    : .72rem;
+  font-size    : .76rem;
   font-weight  : 500;
   transition   : all .15s;
 }
@@ -1192,7 +1230,7 @@ input { font-family: inherit; }
   background   : var(--surface);
 }
 .comentario-nuevo textarea:focus { outline: none; border-color: var(--accent); }
-.comentario-nuevo button, .btn-comentario-mini { padding: 0 12px; border-radius: 6px; background: var(--accent); color: #fff; border: none; font-size: .72rem; font-weight: 600; cursor: pointer; }
+.comentario-nuevo button, .btn-comentario-mini { padding: 0 12px; border-radius: 6px; background: var(--accent); color: #fff; border: 1px solid var(--accent-border); font-size: .76rem; font-weight: 600; cursor: pointer; }
 .comentario-nuevo button:hover, .btn-comentario-mini:hover { background: #b45309; }
 .comentario-edicion textarea {
   width        : 100%;
@@ -1338,6 +1376,20 @@ input { font-family: inherit; }
 }
 .faceta-limpiar.visible { display: inline; }
 .faceta-limpiar:disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }
+/* v5.4.0 — #btn-actualizar-etiquetas deja de ser un link suelto
+   (.faceta-limpiar de base) y pasa a botón chico con borde, mismo
+   criterio de "siempre con borde" que el resto de los botones de
+   acción; el resto de .faceta-limpiar (links de "Limpiar" de
+   Facetas) sigue como estaba, fuera de este pedido puntual. */
+#btn-actualizar-etiquetas {
+  font-size    : .68rem;
+  padding      : 4px 10px;
+  border       : 1px solid var(--accent2);
+  border-radius: var(--radius-sm);
+  background   : var(--surface);
+  color        : var(--accent2);
+}
+#btn-actualizar-etiquetas:hover:not(:disabled) { background: var(--accent2); color: #fff; }
 .faceta-lista { display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 0; overflow-y: auto; padding-right: 2px; }
 .faceta-chip {
   display      : flex;
@@ -1880,12 +1932,12 @@ input { font-family: inherit; }
 #input-etiqueta-nueva:focus { outline: none; border-color: var(--accent); }
 #input-etiqueta-nueva:disabled { opacity: .5; cursor: not-allowed; background: var(--bg); }
 .btn-agregar-etiqueta {
-  padding      : 7px 14px;
+  padding      : 6px 14px;
   border       : 1px solid var(--accent2);
   border-radius: var(--radius-sm);
   background   : var(--surface);
   color        : var(--accent2);
-  font-size    : .78rem;
+  font-size    : .76rem;
   font-weight  : 600;
   transition   : all .15s;
 }
@@ -1898,7 +1950,7 @@ input { font-family: inherit; }
 #explorador-acciones { display: flex; gap: 10px; margin-top: 18px; }
 .btn-carga {
   padding      : 10px 18px;
-  border       : none;
+  border       : 1px solid var(--accent-border);
   border-radius: var(--radius-sm);
   background   : var(--accent);
   color        : #fff;
@@ -1908,7 +1960,7 @@ input { font-family: inherit; }
 }
 .btn-carga:hover { background: #b45309; }
 .btn-carga:disabled { opacity: .5; cursor: not-allowed; }
-.btn-carga-secundario { background: var(--accent2); }
+.btn-carga-secundario { background: var(--accent2); border-color: #1e293b; /* v5.4.0 — borde propio, más claro que el fondo navy, para que se distinga */ }
 .btn-carga-secundario:hover { background: #1e293b; }
 
 #registro-carga-lista { display: flex; flex-direction: column; gap: 8px; }
@@ -2029,7 +2081,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v5.3.0</div>
+    <div class="caja-version">v5.4.0</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -2086,7 +2138,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.3.0</span>
+    <span class="hdr-version">v5.4.0</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
@@ -2139,14 +2191,14 @@ input { font-family: inherit; }
             <input type="checkbox" id="chk-modo-listado" onchange="onCambioModoListado()">
             <span class="switch-track"></span>
           </span>
-          <label id="lbl-modo-listado" for="chk-modo-listado">📋 Modo listado</label>
+          <label id="lbl-modo-listado" for="chk-modo-listado">Modo listado</label>
           <!-- v5.2.0 — Favoritos: filtro combinable con lo demás, se
                dispara como cualquier otra opción (ver ejecutarBusqueda). -->
           <span class="switch-wrap">
             <input type="checkbox" id="chk-solo-favoritos" onchange="ejecutarBusqueda()">
             <span class="switch-track"></span>
           </span>
-          <label id="lbl-solo-favoritos" for="chk-solo-favoritos">★ Solo favoritos</label>
+          <label id="lbl-solo-favoritos" for="chk-solo-favoritos">Solo favoritos</label>
         </div>
         <div id="buscar-contador"></div>
       </div>
@@ -2187,7 +2239,7 @@ input { font-family: inherit; }
 <div id="pantalla-mapa">
   <header id="mapa-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.3.0</span>
+    <span class="hdr-version">v5.4.0</span>
     <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
   </header>
@@ -2215,7 +2267,7 @@ input { font-family: inherit; }
 <div id="pantalla-grafo">
   <header id="grafo-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.3.0</span>
+    <span class="hdr-version">v5.4.0</span>
     <span class="hdr-obra-nombre" id="grafo-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeGrafo()">← Buscador</button>
   </header>
@@ -2261,7 +2313,7 @@ input { font-family: inherit; }
 <div id="pantalla-dashboard">
   <header id="dashboard-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.3.0</span>
+    <span class="hdr-version">v5.4.0</span>
     <span class="hdr-obra-nombre" id="dashboard-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeDashboard()">← Buscador</button>
   </header>
@@ -2318,7 +2370,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.3.0</span>
+    <span class="hdr-version">v5.4.0</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -2345,7 +2397,7 @@ input { font-family: inherit; }
       <div id="explorador-etiquetas">
         <div class="carga-seccion-titulo">
           <span>Etiquetas manuales para este lote (opcional)</span>
-          <button id="btn-actualizar-etiquetas" class="faceta-limpiar visible" onclick="cargarEtiquetasDisponiblesCarga()" title="Volver a pedir la lista de etiquetas al servidor">🔄 Actualizar</button>
+          <button id="btn-actualizar-etiquetas" class="faceta-limpiar visible" onclick="cargarEtiquetasDisponiblesCarga()" title="Volver a pedir la lista de etiquetas al servidor">Actualizar</button>
         </div>
         <div id="etiquetas-checkboxes" class="etiquetas-pill-grid"></div>
         <div id="etiqueta-nueva-fila">
@@ -4509,7 +4561,9 @@ function mostrarPantallaCarga() {
   cargarNodoCarpeta(null);
   cargarEtiquetasDisponiblesCarga();
   cargarPendientes(); // para el badge del tab, aunque arranque en "Cargar documentos"
-  cargarVacios();     // v2.2.0 — ídem, para el badge de "Documentos vacíos"
+  // v5.4.0 — catálogo de marcas manuales, se pide antes de cargarVacios()
+  // para que las cards ya salgan con el menú "Acción" completo.
+  cargarTiposMarcaManual().then(cargarVacios);
 }
 
 // v2.1.0 — antes la vista del buscador quedaba con los datos de
@@ -4517,12 +4571,26 @@ function mostrarPantallaCarga() {
 // visibles). Ahora se refresca el resumen de la obra al volver, y si
 // había una búsqueda o faceta activa, se vuelve a ejecutar para que
 // traiga lo recién indexado.
+// v5.4.0 — 2 fixes (Ale, probando v5.3.0):
+//  (4) mientras se pide obtenerResumenObra() se veía un instante el
+//      placeholder/resultados viejos antes de asentarse — se cubre
+//      con el mismo spinner que ya usa el Mapa Documental.
+//  (5) BUG: la condición para re-ejecutar la búsqueda solo miraba
+//      término/Facetas, sin contemplar "Solo favoritos" ni "Modo
+//      listado" — si alguno de esos 2 era el único filtro activo,
+//      cargarResumenObra() igual limpiaba el panel (mostrarEstadoInicial)
+//      y nunca se volvía a pedir nada, dejando la lista vacía pese al
+//      toggle seguir prendido. Se suman ambos checkboxes a la condición.
 function volverABuscador() {
   mostrarPantalla('app-visible');
+  document.getElementById('lista-resultados').innerHTML =
+    '<div class="resultados-cargando"><div class="spinner"></div>Actualizando...</div>';
   cargarResumenObra().then(function () {
     const termino = document.getElementById('input-buscar').value.trim();
     const hayFacetas = facetasSeleccionadas.etiquetas.size > 0 || facetasSeleccionadas.carpetas.size > 0;
-    if (termino || hayFacetas) {
+    const soloFavoritos = document.getElementById('chk-solo-favoritos').checked;
+    const modoListado = document.getElementById('chk-modo-listado').checked;
+    if (termino || hayFacetas || soloFavoritos || modoListado) {
       ejecutarBusqueda();
     }
   });
@@ -5008,6 +5076,22 @@ async function reintentarPendiente(link, card, etiquetasManuales) {
 }
 
 // ── Panel 3 (v2.2.0): Documentos vacíos (persistente, documentos_vacios) ──
+// v5.4.0 — catálogo de marcas manuales (tipos_marca_manual del
+// Maestro), pedido UNA vez al entrar a la pantalla de Carga (mismo
+// momento que las Etiquetas) y cacheado en memoria; reemplaza el
+// ítem fijo "Cargar como Plano" del menú "Acción" de cada card de
+// Documentos vacíos por uno por cada fila del catálogo.
+let tiposMarcaManualCache = [];
+
+async function cargarTiposMarcaManual() {
+  try {
+    const r = await llamarBackend('listarTiposMarcaManual', { obraId: obraActual.obraId, email: emailActual });
+    tiposMarcaManualCache = (r.ok && Array.isArray(r.tipos)) ? r.tipos : [];
+  } catch (err) {
+    tiposMarcaManualCache = [];
+  }
+}
+
 async function cargarVacios() {
   const badge = document.getElementById('vacios-count');
   const cont = document.getElementById('vacios-lista');
@@ -5029,6 +5113,10 @@ async function cargarVacios() {
     r.vacios.forEach(function (v) {
       const card = document.createElement('div');
       card.className = 'pendiente-card vacio-card';
+      const itemsMarca = (tiposMarcaManualCache.length ? tiposMarcaManualCache : [{ etiquetaVisible: 'Cargar como Plano', marcaInterna: 'Plano' }])
+        .map(function (t) {
+          return '<button class="accion-menu-item" data-accion="marca" data-marca-interna="' + escapeHtml(t.marcaInterna) + '">' + escapeHtml(t.etiquetaVisible) + '</button>';
+        }).join('');
       card.innerHTML =
         '<div class="pendiente-doc">' + escapeHtml(v.documento) + '</div>' +
         '<div class="pendiente-carpeta">' + escapeHtml(v.carpeta || '') + '</div>' +
@@ -5038,7 +5126,7 @@ async function cargarVacios() {
         '<button class="btn-accion-menu" type="button">Acción ▾</button>' +
         '<div class="accion-menu">' +
         '<button class="accion-menu-item" data-accion="reintentar">Reintentar</button>' +
-        '<button class="accion-menu-item" data-accion="plano">Cargar como Plano</button>' +
+        itemsMarca +
         '</div></div>';
       const etiquetasManuales = (v.etiquetasManuales || '').split(',').map(function (e) { return e.trim(); }).filter(Boolean);
       configurarAccionDropdown(card, v.link, etiquetasManuales);
@@ -5054,6 +5142,9 @@ async function cargarVacios() {
 // solo listener global cierra cualquier dropdown abierto al hacer
 // clic afuera (más ítems se agregan solo sumando otro <button
 // class="accion-menu-item" data-accion="...">, sin tocar esta parte).
+// v5.4.0 — los ítems data-accion="marca" (uno por tipo del catálogo
+// tipos_marca_manual) se cablean todos juntos, leyendo cada uno su
+// propio data-marca-interna.
 function configurarAccionDropdown(card, link, etiquetasManuales) {
   const dropdown = card.querySelector('.accion-dropdown');
   const btnMenu = card.querySelector('.btn-accion-menu');
@@ -5067,10 +5158,12 @@ function configurarAccionDropdown(card, link, etiquetasManuales) {
     dropdown.classList.remove('abierto');
     reintentarVacio(link, card, etiquetasManuales);
   };
-  card.querySelector('[data-accion="plano"]').onclick = function () {
-    dropdown.classList.remove('abierto');
-    cargarComoPlano(link, card, etiquetasManuales);
-  };
+  card.querySelectorAll('[data-accion="marca"]').forEach(function (item) {
+    item.onclick = function () {
+      dropdown.classList.remove('abierto');
+      cargarComoMarcaManual(link, card, etiquetasManuales, item.getAttribute('data-marca-interna'), item.textContent);
+    };
+  });
 }
 
 document.addEventListener('click', function () {
@@ -5105,23 +5198,26 @@ async function reintentarVacio(link, card, etiquetasManuales) {
 }
 
 // v2.3.0 — "Cargar como Plano": registra el documento con texto
-// vacío + etiqueta "Plano", para PDF de AutoCAD sin texto real
+// vacío + etiqueta fija, para PDF de AutoCAD sin texto real
 // extraíble (no tiene sentido seguir reintentando la extracción).
 // v2.4.0 — se suma bloquearCargaUI alrededor de la llamada, mismo
 // criterio que reintentarVacio/reintentarPendiente.
-async function cargarComoPlano(link, card, etiquetasManuales) {
+// v5.4.0 — generalizada a cualquier marca del catálogo
+// tipos_marca_manual (antes solo "Plano" hardcodeado); marcaInterna
+// y etiquetaVisible vienen del ítem del menú que se clickeó.
+async function cargarComoMarcaManual(link, card, etiquetasManuales, marcaInterna, etiquetaVisible) {
   const btn = card.querySelector('.btn-accion-menu');
   btn.disabled = true;
   btn.textContent = 'Cargando…';
   bloquearCargaUI(true);
   try {
-    const r = await llamarBackend('cargarComoPlano', { obraId: obraActual.obraId, email: emailActual, link: link, etiquetas: etiquetasManuales || [] });
+    const r = await llamarBackend('cargarComoMarcaManual', { obraId: obraActual.obraId, email: emailActual, link: link, etiquetas: etiquetasManuales || [], marcaInterna: marcaInterna });
     if (r.ok) {
       cargarVacios();
     } else {
       btn.disabled = false;
       btn.textContent = 'Acción ▾';
-      alert('No se pudo cargar como Plano: ' + (r.error || ''));
+      alert('No se pudo cargar como "' + etiquetaVisible + '": ' + (r.error || ''));
     }
   } catch (err) {
     btn.disabled = false;
