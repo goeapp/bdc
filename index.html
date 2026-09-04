@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v5.4.2</title>
+<title>BDC — Buscador Documental de Contrato v6.0.0</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,7 +17,47 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
-  index_bdc_v5_4_2.html — v5.4.2 (03-sep-2026) — Tanda 2, fix post-prueba #2
+  index_bdc_v6_0_0.html — v6.0.0 (04-sep-2026) — Búsqueda en el Grafo (Conexiones)
+
+  QUÉ CAMBIÓ EN v6.0.0 (respecto a v5.4.2) — Ale probó Conexiones con
+  una obra de 221 documentos indexados (captura real, grafo de
+  Referencias) y no había forma de ubicar un nodo puntual salvo
+  arrastrar/escanear a ojo. Diseño cerrado antes de codear (3
+  preguntas respondidas por Ale). Backend sin cambios (sigue
+  bdc_gas_v5_4_0.gs) — la búsqueda corre 100% sobre los datos ya
+  cargados en el navegador (grafoNodosSimActual), no pide nada nuevo
+  al backend.
+   - Nuevo input de búsqueda en #grafo-toolbar, junto a los botones
+     "Etiquetas compartidas"/"Referencias entre documentos" (mismo
+     patrón visual que #input-buscar del buscador principal: borde,
+     foco, botón "✕" que aparece solo con texto escrito). Dispara con
+     Enter o el botón de lupa — no busca en vivo tecla por tecla,
+     mismo criterio ya usado en el buscador principal para no
+     recalcular de más con muchos nodos.
+   - buscarEnGrafo(): matchea contra el nombre visible de CUALQUIER
+     nodo del grafo actual — documento o etiqueta (grafo de
+     Etiquetas es bipartito, tiene los 2 tipos) — sin distinguir
+     mayúsculas/acentos (normalizarTextoGrafo_ nueva, mismo criterio
+     que la normalización de acentos que ya usa la búsqueda
+     principal, pero corrida en el navegador porque acá no hay
+     backend de por medio). Sin coincidencias → mostrarToast('Sin
+     coincidencias'), reusa el toast genérico de v5.3.0.
+   - Con coincidencias: centra el lienzo en el PRIMER match sin
+     resetear el zoom actual — toma la escala vigente
+     (d3.zoomTransform) y solo traslada, con transición suave (mismo
+     patrón que ajustarZoomAFitGrafo pero sin recalcular escala). Y
+     hace parpadear TODOS los nodos que coincidieron (clase CSS
+     .grafo-nodo-parpadeo, 5 ciclos de opacidad+borde, 2.5s), para
+     los casos donde el término matchea varios documentos a la vez.
+     Mientras dura el parpadeo, la etiqueta de texto de esos nodos
+     queda visible (aunque el nodo sea de tipo documento, que por
+     default solo la muestra en hover) — se apaga sola al terminar,
+     salvo que sea un nodo-etiqueta (siempre visible) o el nodo
+     seleccionado en el panel (no se toca ninguno de los dos).
+   - limpiarBusquedaGrafo() (botón "✕") y cambio de tipo de conexión
+     o recarga del grafo (cargarGrafo) cortan cualquier parpadeo en
+     curso y vacían el input — los nodos de un modo no existen en el
+     otro, no tiene sentido dejar un resaltado de una búsqueda vieja.
 
   QUÉ CAMBIÓ EN v5.4.2 (respecto a v5.4.1) — Ale marcó 2 puntos más
   probando v5.4.1:
@@ -1617,6 +1657,8 @@ input { font-family: inherit; }
   border-bottom  : 1px solid var(--border);
   background     : var(--surface);
   flex-shrink    : 0;
+  flex-wrap      : wrap; /* v6.0.0 — con el buscador sumado, evita que se corte en pantallas angostas */
+  row-gap        : 8px;
 }
 #grafo-titulo { font-size: .82rem; color: var(--muted); font-weight: 600; }
 
@@ -1635,6 +1677,39 @@ input { font-family: inherit; }
 .grafo-tipo-btn + .grafo-tipo-btn { border-left: 1px solid var(--border); }
 .grafo-tipo-btn:hover  { background: var(--bg); color: var(--text); }
 .grafo-tipo-btn.activo { background: var(--accent); color: #fff; }
+
+/* v6.0.0 — buscador de nodos dentro del Grafo. Mismo patrón visual
+   que #input-buscar-wrap/#input-buscar del buscador principal
+   (borde + foco + botón "✕" que aparece solo con texto), pero más
+   compacto para convivir en la toolbar del Grafo junto al selector
+   de tipo y los controles de zoom. */
+#grafo-buscar-wrap { position: relative; width: 210px; }
+#grafo-input-buscar {
+  width        : 100%;
+  padding      : 6px 28px 6px 10px;
+  border       : 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size    : .78rem;
+  transition   : border-color .15s;
+}
+#grafo-input-buscar:focus { outline: none; border-color: var(--accent); }
+#grafo-btn-limpiar-buscar {
+  display      : none; /* se muestra por JS solo cuando hay texto, igual que btn-limpiar-buscar */
+  position     : absolute;
+  right        : 4px;
+  top          : 50%;
+  transform    : translateY(-50%);
+  width        : 20px;
+  height       : 20px;
+  border       : none;
+  background   : transparent;
+  color        : var(--muted);
+  font-size    : .9rem;
+  line-height  : 1;
+  border-radius: 50%;
+  transition   : background .15s, color .15s;
+}
+#grafo-btn-limpiar-buscar:hover { background: var(--border); color: var(--text); }
 
 #grafo-cuerpo { flex: 1; display: flex; padding: 16px; gap: 14px; overflow: hidden; }
 #grafo-lienzo-wrap {
@@ -1716,6 +1791,14 @@ input { font-family: inherit; }
 .grafo-nodo-circulo { cursor: pointer; stroke: rgba(255,255,255,.5); stroke-width: 1.5px; transition: stroke-width .1s; }
 .grafo-nodo-circulo:hover { stroke-width: 3px; }
 .grafo-nodo-circulo.seleccionado { stroke: var(--text); stroke-width: 3px; }
+/* v6.0.0 — resultado de buscarEnGrafo(): parpadeo temporal (5
+   ciclos ≈ 2.5s, coordinado por JS en detenerParpadeoGrafo_) sobre
+   TODOS los nodos que matchearon la búsqueda, no solo el primero. */
+@keyframes grafo-nodo-parpadeo {
+  0%, 100% { opacity: 1;   stroke: rgba(255,255,255,.5); stroke-width: 1.5px; }
+  50%      { opacity: .25; stroke: var(--text);          stroke-width: 3.5px; }
+}
+.grafo-nodo-circulo.grafo-nodo-parpadeo { animation: grafo-nodo-parpadeo .5s ease-in-out 5; }
 /* v4.0.1 — oculta por default (ver inicializarGrafoD3): visible solo
    en hover o si el nodo está seleccionado (panel abierto). */
 .grafo-nodo-texto { font-family: 'DM Sans', sans-serif; font-size: 10.5px; fill: var(--text); pointer-events: none; opacity: 0; transition: opacity .12s; }
@@ -2119,7 +2202,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v5.4.2</div>
+    <div class="caja-version">v6.0.0</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -2176,7 +2259,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.4.2</span>
+    <span class="hdr-version">v6.0.0</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
@@ -2277,7 +2360,7 @@ input { font-family: inherit; }
 <div id="pantalla-mapa">
   <header id="mapa-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.4.2</span>
+    <span class="hdr-version">v6.0.0</span>
     <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
   </header>
@@ -2305,7 +2388,7 @@ input { font-family: inherit; }
 <div id="pantalla-grafo">
   <header id="grafo-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.4.2</span>
+    <span class="hdr-version">v6.0.0</span>
     <span class="hdr-obra-nombre" id="grafo-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeGrafo()">← Buscador</button>
   </header>
@@ -2316,6 +2399,16 @@ input { font-family: inherit; }
       <button class="grafo-tipo-btn activo" id="grafo-tipo-etiquetas" onclick="cambiarTipoConexionGrafo('etiquetas')">Etiquetas compartidas</button>
       <button class="grafo-tipo-btn" id="grafo-tipo-referencias" onclick="cambiarTipoConexionGrafo('referencias')">Referencias entre documentos</button>
     </div>
+    <!-- v6.0.0 — buscador de nodos: junto a los botones de tipo de
+         conexión, pedido explícito de Ale. Busca en el documento o
+         etiqueta que esté cargado en el grafo activo. -->
+    <div id="grafo-buscar-wrap">
+      <input type="text" id="grafo-input-buscar" placeholder="Buscar documento o etiqueta…"
+             oninput="actualizarVisibilidadBtnLimpiarGrafo()"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();buscarEnGrafo();}">
+      <button id="grafo-btn-limpiar-buscar" onclick="limpiarBusquedaGrafo()" title="Borrar" aria-label="Borrar búsqueda">✕</button>
+    </div>
+    <button class="mapa-btn-zoom" onclick="buscarEnGrafo()" title="Buscar" aria-label="Buscar">🔍</button>
     <span class="mapa-toolbar-sep"></span>
     <button class="mapa-btn-zoom" onclick="grafoZoom(0.8)" title="Alejar" aria-label="Alejar">−</button>
     <button class="mapa-btn-zoom" onclick="grafoZoom(1.25)" title="Acercar" aria-label="Acercar">+</button>
@@ -2351,7 +2444,7 @@ input { font-family: inherit; }
 <div id="pantalla-dashboard">
   <header id="dashboard-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.4.2</span>
+    <span class="hdr-version">v6.0.0</span>
     <span class="hdr-obra-nombre" id="dashboard-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeDashboard()">← Buscador</button>
   </header>
@@ -2408,7 +2501,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v5.4.2</span>
+    <span class="hdr-version">v6.0.0</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -3865,6 +3958,10 @@ let grafoSvg = null, grafoZoomG = null, grafoZoomBehavior = null, grafoSimulatio
 let grafoNodos = [], grafoEdges = [], grafoTipoActual = 'etiquetas', grafoNodoSeleccionadoId = null;
 let grafoNodosSimActual = []; // v4.0.1 — última corrida de la simulación, para poder re-encuadrar (Reset) sin volver a pedir datos
 let grafoYaEncuadroInicial = false; // v4.1.1 — ver comentario en inicializarGrafoD3, al lado del listener 'end'
+// v6.0.0 — buscador de nodos (ver buscarEnGrafo más abajo).
+let grafoBlinkTimeoutId = null;    // timer que apaga el parpadeo a los 2.5s
+let grafoIdsParpadeando = [];      // ids de nodo con .grafo-nodo-parpadeo activa ahora mismo
+let grafoIdsLabelTemporal = [];    // subconjunto de los de arriba cuya etiqueta de texto se forzó visible solo para este resaltado (para poder volver a ocultarla al terminar, sin tocar las que ya eran visibles por otro motivo)
 
 function mostrarPantallaGrafo() {
   mostrarPantalla('grafo-visible');
@@ -3874,6 +3971,7 @@ function mostrarPantallaGrafo() {
 }
 
 function volverABuscadorDesdeGrafo() {
+  detenerParpadeoGrafo_(); // v6.0.0 — corta el timer de parpadeo si quedaba corriendo al salir de la pantalla
   mostrarPantalla('app-visible');
 }
 
@@ -3893,6 +3991,7 @@ async function cargarGrafo() {
   if (grafoSimulation) { grafoSimulation.stop(); grafoSimulation = null; }
   grafoNodosSimActual = [];
   grafoYaEncuadroInicial = false; // v4.1.1 — nuevo grafo, el próximo asentado sí debe auto-encuadrar
+  limpiarBusquedaGrafo(); // v6.0.0 — nuevo grafo (o cambio de tipo): los nodos de la búsqueda/parpadeo anterior ya no existen
   vacioMsg.style.display = 'none';
   svgEl.style.display = 'none';
   spinnerWrap.style.display = 'flex';
@@ -4193,6 +4292,99 @@ function grafoResetVista() {
   // asentarse la simulación (ajustarZoomAFitGrafo).
   if (grafoNodosSimActual.length) ajustarZoomAFitGrafo(grafoNodosSimActual);
   else grafoSvg.transition().duration(200).call(grafoZoomBehavior.transform, d3.zoomIdentity);
+}
+
+// ── BUSCADOR DE NODOS DENTRO DEL GRAFO (v6.0.0) ──────────────────
+// Corre 100% sobre grafoNodosSimActual (ya en memoria, con x/y de
+// la simulación asentada) — no pide nada al backend. Matchea contra
+// el nombre visible de cualquier nodo, sea documento o etiqueta.
+
+/** Mismo criterio de acento-insensibilidad que ya usa la búsqueda
+ * principal, pero corrido en el navegador (acá no hay backend de
+ * por medio, los nodos ya están cargados en memoria). */
+function normalizarTextoGrafo_(s) {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function actualizarVisibilidadBtnLimpiarGrafo() {
+  const input = document.getElementById('grafo-input-buscar');
+  document.getElementById('grafo-btn-limpiar-buscar').style.display = input.value ? 'block' : 'none';
+}
+
+function limpiarBusquedaGrafo() {
+  document.getElementById('grafo-input-buscar').value = '';
+  actualizarVisibilidadBtnLimpiarGrafo();
+  detenerParpadeoGrafo_();
+}
+
+function buscarEnGrafo() {
+  const termino = normalizarTextoGrafo_(document.getElementById('grafo-input-buscar').value.trim());
+  if (!termino || !grafoNodosSimActual.length || !grafoSvg || !grafoZoomBehavior) return;
+
+  const matches = grafoNodosSimActual.filter(function (d) {
+    return normalizarTextoGrafo_(d.nombre).indexOf(termino) !== -1;
+  });
+  if (!matches.length) { mostrarToast('Sin coincidencias'); return; }
+
+  detenerParpadeoGrafo_(); // corta cualquier resaltado de una búsqueda anterior antes de arrancar uno nuevo
+
+  // Centra el PRIMER match sin resetear el zoom: toma la escala
+  // vigente (d3.zoomTransform lee el transform actual del <svg>) y
+  // solo traslada — mismo cálculo que ajustarZoomAFitGrafo pero sin
+  // recalcular la escala, a propósito (Ale pidió mantener el zoom).
+  const viewport = document.getElementById('grafo-viewport');
+  const ancho = viewport.clientWidth || 800;
+  const alto = viewport.clientHeight || 600;
+  const escalaActual = d3.zoomTransform(grafoSvg.node()).k;
+  const primero = matches[0];
+  const transform = d3.zoomIdentity
+    .translate(ancho / 2, alto / 2)
+    .scale(escalaActual)
+    .translate(-primero.x, -primero.y);
+  grafoSvg.transition().duration(400).call(grafoZoomBehavior.transform, transform);
+
+  resaltarNodosGrafo_(matches);
+}
+
+/** Aplica el parpadeo (clase CSS, ver @keyframes grafo-nodo-parpadeo)
+ * a TODOS los nodos que matchearon, no solo al que se centró — el
+ * caso de uso real es "con qué está vinculado este código" cuando
+ * el término matchea varios documentos a la vez. También fuerza
+ * visible la etiqueta de texto de esos nodos mientras dura el
+ * parpadeo (por default los nodos-documento solo la muestran en
+ * hover); se apaga sola a los 2.5s vía detenerParpadeoGrafo_. */
+function resaltarNodosGrafo_(nodos) {
+  const ids = nodos.map(function (n) { return n.id; });
+  grafoIdsParpadeando = ids;
+
+  d3.selectAll('.grafo-nodo-circulo').filter(function (d) { return ids.indexOf(d.id) !== -1; })
+    .classed('grafo-nodo-parpadeo', true);
+
+  // Las etiquetas de texto que ESTE resaltado fuerza a visible se
+  // anotan aparte, para no apagar por error una que ya era visible
+  // por otro motivo (nodo-etiqueta, siempre visible; o el nodo
+  // seleccionado en el panel de detalle).
+  grafoIdsLabelTemporal = nodos
+    .filter(function (n) { return n.tipo !== 'etiqueta' && n.id !== grafoNodoSeleccionadoId; })
+    .map(function (n) { return n.id; });
+  d3.selectAll('.grafo-nodo-texto').filter(function (d) { return ids.indexOf(d.id) !== -1; })
+    .classed('visible', true);
+
+  grafoBlinkTimeoutId = setTimeout(detenerParpadeoGrafo_, 2500);
+}
+
+function detenerParpadeoGrafo_() {
+  if (grafoBlinkTimeoutId) { clearTimeout(grafoBlinkTimeoutId); grafoBlinkTimeoutId = null; }
+  if (grafoIdsParpadeando.length) {
+    d3.selectAll('.grafo-nodo-circulo').filter(function (d) { return grafoIdsParpadeando.indexOf(d.id) !== -1; })
+      .classed('grafo-nodo-parpadeo', false);
+  }
+  if (grafoIdsLabelTemporal.length) {
+    d3.selectAll('.grafo-nodo-texto').filter(function (d) { return grafoIdsLabelTemporal.indexOf(d.id) !== -1; })
+      .classed('visible', false);
+  }
+  grafoIdsParpadeando = [];
+  grafoIdsLabelTemporal = [];
 }
 
 // ── VISTA DASHBOARD (v5.0.0) ──────────────────────────────────
