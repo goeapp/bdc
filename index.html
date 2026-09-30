@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v6.0.0</title>
+<title>BDC — Buscador Documental de Contrato v6.1.0</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,6 +17,32 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
+  index_bdc_v6_1_0.html — v6.1.0 (30-sep-2026) — Comentarios en la búsqueda,
+  etiquetas omitidas y cantidad de páginas
+
+  QUÉ CAMBIÓ EN v6.1.0 (respecto a v6.0.0) — diseño cerrado con Ale el
+  30-sep antes de codear. Backend: bdc_gas_v6_1_0.gs.
+   - (a) Búsqueda en comentarios, siempre activa: si el término SOLO
+     está en un comentario, la tarjeta muestra la etiqueta "Encontrado
+     en comentario", el fragmento del comentario con su autor
+     ("💬 Ale Perin: …UOCRA…") y el panel de Comentarios ya abierto con
+     ese comentario resaltado. Si además está en el PDF, la tarjeta
+     sale como siempre + aviso clickeable "también en N comentario(s)"
+     (abre el panel).
+   - (b) Etiquetas omitidas: nuevo bloque "Etiquetas automáticas que
+     se van a generar" en la pantalla de carga, debajo de Etiquetas
+     manuales — pastillas marcadas por defecto con la cantidad de PDF
+     de la carpeta que la generan; las que se destildan viajan en
+     cargarCarpeta como "omitir" y el backend las agrega a
+     etiquetas_omitidas antes de indexar (ya no vuelven a aparecer).
+     Números/fechas y lo ya omitido no se muestran. El diálogo de
+     confirmación avisa cuántas se van a omitir.
+   - (4) La tarjeta muestra "N págs." (columna Pagina = cantidad de
+     páginas del PDF) en vez de "Pág. 1"; vacío = no se muestra nada.
+     También en Modo listado.
+   - Fix chico: el label "Modo listado" tenía otro tamaño de letra que
+     el resto de los toggles (había quedado fuera de la regla CSS).
+
   index_bdc_v6_0_0.html — v6.0.0 (04-sep-2026) — Búsqueda en el Grafo (Conexiones)
 
   QUÉ CAMBIÓ EN v6.0.0 (respecto a v5.4.2) — Ale probó Conexiones con
@@ -1163,7 +1189,7 @@ input { font-family: inherit; }
 .switch-wrap input:disabled { cursor: not-allowed; }
 .switch-wrap input:disabled + .switch-track { opacity: .45; }
 #lbl-palabra-completa.deshabilitada, #lbl-palabras-sueltas.deshabilitada { opacity: .45; cursor: not-allowed; }
-#lbl-palabra-completa, #lbl-palabras-sueltas, #lbl-solo-favoritos { font-size: .72rem; color: var(--muted); cursor: pointer; user-select: none; }
+#lbl-palabra-completa, #lbl-palabras-sueltas, #lbl-modo-listado, #lbl-solo-favoritos { font-size: .72rem; color: var(--muted); cursor: pointer; user-select: none; }
 #buscar-contador { font-size: .72rem; color: var(--muted); margin-top: 4px; }
 
 /* ── Lista de resultados ─────────────────────── */
@@ -1180,6 +1206,33 @@ input { font-family: inherit; }
 .resultado-meta { font-size: .68rem; color: var(--muted); margin-bottom: 8px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .resultado-carpeta { color: var(--muted); }
 .resultado-snippet { font-size: .8rem; color: var(--text); line-height: 1.5; margin-bottom: 10px; }
+.resultado-snippet.de-comentario { background: var(--bg); border-left: 3px solid var(--accent2); padding: 6px 10px; border-radius: 0 6px 6px 0; }
+.resultado-snippet.de-comentario .snippet-autor { font-weight: 600; color: var(--accent2); }
+/* v6.1.0 — (a) origen del match en comentarios */
+.resultado-origen-comentario {
+  display      : inline-block;
+  font-size    : .64rem;
+  font-weight  : 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color        : #fff;
+  background   : var(--accent2);
+  padding      : 2px 8px;
+  border-radius: 99px;
+  margin-bottom: 6px;
+}
+.resultado-aviso-comentarios {
+  display      : inline-block;
+  font-size    : .72rem;
+  color        : var(--accent2);
+  background   : none;
+  border       : none;
+  padding      : 0;
+  margin       : -4px 0 10px;
+  text-decoration: underline;
+  cursor       : pointer;
+}
+.comentario-item.coincide { background: var(--hl-bg); border-left-color: var(--hl-fg); border-radius: 0 6px 6px 0; }
 .resultado-snippet mark { background: var(--hl-bg); color: var(--hl-fg); padding: 1px 2px; border-radius: 3px; font-weight: 600; } /* v5.1.0 — distinto de las etiquetas (ámbar) */
 .resultado-etiquetas { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
 .resultado-etiqueta-chip {
@@ -1973,7 +2026,7 @@ input { font-family: inherit; }
 
 #explorador-breadcrumb { font-size: .78rem; color: var(--muted); margin-bottom: 10px; display: flex; flex-wrap: wrap; align-items: center; }
 /* v2.2.0 — bloqueo visual mientras corre una carga (bug fix) */
-#explorador-breadcrumb.bloqueado, #explorador-lista.bloqueado, #etiquetas-checkboxes.bloqueado { pointer-events: none; opacity: .5; }
+#explorador-breadcrumb.bloqueado, #explorador-lista.bloqueado, #etiquetas-checkboxes.bloqueado, #etiquetas-auto-pills.bloqueado { pointer-events: none; opacity: .5; }
 .breadcrumb-item { cursor: pointer; }
 .breadcrumb-item:hover { color: var(--accent); text-decoration: underline; }
 .breadcrumb-item:last-child { color: var(--text); font-weight: 600; cursor: default; }
@@ -2038,6 +2091,12 @@ input { font-family: inherit; }
 }
 .etiqueta-pill:hover  { border-color: var(--accent); }
 .etiqueta-pill.activa { background: var(--tag-sel); color: var(--tag-sfg); }
+/* v6.1.0 — (b) vista previa de etiquetas automáticas: marcada = se
+   genera; destildada = se omite (va a etiquetas_omitidas al cargar). */
+.etiqueta-pill-auto { display: inline-flex; align-items: center; gap: 6px; }
+.etiqueta-pill-auto .pill-count { font-size: .66rem; opacity: .75; }
+.etiqueta-pill-auto:not(.activa) { background: var(--surface); color: var(--muted); border-color: var(--border); text-decoration: line-through; }
+.etiquetas-auto-ayuda { font-size: .72rem; color: var(--muted); margin: -2px 0 8px; line-height: 1.5; }
 
 /* v2.1.0 — alta de etiquetas nuevas (Create, sin editar ni borrar) */
 #etiqueta-nueva-fila { display: flex; gap: 8px; }
@@ -2202,7 +2261,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v6.0.0</div>
+    <div class="caja-version">v6.1.0</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -2259,7 +2318,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.0.0</span>
+    <span class="hdr-version">v6.1.0</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
@@ -2360,7 +2419,7 @@ input { font-family: inherit; }
 <div id="pantalla-mapa">
   <header id="mapa-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.0.0</span>
+    <span class="hdr-version">v6.1.0</span>
     <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
   </header>
@@ -2388,7 +2447,7 @@ input { font-family: inherit; }
 <div id="pantalla-grafo">
   <header id="grafo-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.0.0</span>
+    <span class="hdr-version">v6.1.0</span>
     <span class="hdr-obra-nombre" id="grafo-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeGrafo()">← Buscador</button>
   </header>
@@ -2444,7 +2503,7 @@ input { font-family: inherit; }
 <div id="pantalla-dashboard">
   <header id="dashboard-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.0.0</span>
+    <span class="hdr-version">v6.1.0</span>
     <span class="hdr-obra-nombre" id="dashboard-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeDashboard()">← Buscador</button>
   </header>
@@ -2501,7 +2560,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.0.0</span>
+    <span class="hdr-version">v6.1.0</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -2536,6 +2595,12 @@ input { font-family: inherit; }
           <button class="btn-agregar-etiqueta" id="btn-agregar-etiqueta" onclick="agregarEtiquetaNueva()">Agregar</button>
         </div>
         <div id="etiqueta-nueva-msg"></div>
+      </div>
+      <!-- v6.1.0 — (b) vista previa de etiquetas automáticas -->
+      <div id="explorador-etiquetas-auto">
+        <div class="carga-seccion-titulo"><span>Etiquetas automáticas que se van a generar</span></div>
+        <div class="etiquetas-auto-ayuda">Salen del nombre de los PDF de esta carpeta. Destildá las que no sirvan: se agregan a la lista de omisiones de la obra y no se vuelven a generar.</div>
+        <div id="etiquetas-auto-pills" class="etiquetas-pill-grid"></div>
       </div>
       <div id="explorador-acciones">
         <button id="btn-cargar-nuevo" class="btn-carga" onclick="pedirConfirmacionCarga('faltantes')">Cargar (solo lo nuevo)</button>
@@ -3229,11 +3294,25 @@ function renderResultados() {
     const linkDescargar = idDrive ? ('https://drive.google.com/uc?export=download&id=' + idDrive) : (r.link || '#');
     const cantComentarios = (r.comentarios || []).length;
 
+    // v6.1.0 — (a) match en comentario: etiqueta + fragmento del
+    // comentario con su autor + panel abierto con el comentario
+    // resaltado. Si además matcheó en el PDF: aviso "también en N".
+    const esDeComentario = r.origenMatch === 'comentario';
+    if (esDeComentario) panelesAbiertos.add(idx);
+    const txtPaginas = formatearPaginas(r.pagina);
+    const snippetHtml = esDeComentario
+      ? '<span class="resultado-origen-comentario">Encontrado en comentario</span>' +
+        '<div class="resultado-snippet de-comentario">💬 <span class="snippet-autor">' + escapeHtml(r.comentarioMatchAutor || '') + ':</span> ' + resaltarSnippet(r.snippet) + '</div>'
+      : '<div class="resultado-snippet">' + resaltarSnippet(r.snippet) + '</div>' +
+        (r.comentariosMatch > 0
+          ? '<button class="resultado-aviso-comentarios" onclick="abrirComentarios(' + idx + ')">también en ' + r.comentariosMatch + ' comentario' + (r.comentariosMatch === 1 ? '' : 's') + '</button>'
+          : '');
+
     card.innerHTML =
       '<div class="resultado-doc">' + escapeHtml(r.documento) + '</div>' +
-      '<div class="resultado-meta"><span>Pág. ' + escapeHtml(String(r.pagina)) + '</span>' +
+      '<div class="resultado-meta">' + (txtPaginas ? '<span>' + txtPaginas + '</span>' : '') +
       (r.carpeta ? '<span class="resultado-carpeta">' + escapeHtml(r.carpeta) + '</span>' : '') + '</div>' +
-      '<div class="resultado-snippet">' + resaltarSnippet(r.snippet) + '</div>' +
+      snippetHtml +
       (etiquetasHtml ? '<div class="resultado-etiquetas">' + etiquetasHtml + '</div>' : '') +
       '<div class="resultado-acciones">' +
       '<a class="btn-resultado ver" href="' + linkVer + '" target="_blank" rel="noopener">Ver</a>' +
@@ -3241,10 +3320,28 @@ function renderResultados() {
       '<button class="resultado-comentarios-toggle' + (cantComentarios > 0 ? ' tiene-comentarios' : '') + '" id="comentarios-toggle-' + idx + '" onclick="toggleComentarios(' + idx + ')">💬 ' + cantComentarios + '</button>' +
       '<button class="resultado-favorito-toggle' + (r.favoritoPropio ? ' marcado' : '') + '" id="favorito-toggle-' + idx + '" onclick="toggleFavoritoUI(' + idx + ')" aria-label="Marcar favorito">' + (r.favoritoPropio ? '★' : '☆') + '</button>' +
       '</div>' +
-      '<div class="resultado-comentarios-panel" id="comentarios-panel-' + idx + '">' + renderComentariosPanelHtml(r, idx) + '</div>';
+      '<div class="resultado-comentarios-panel' + (esDeComentario ? ' abierto' : '') + '" id="comentarios-panel-' + idx + '">' + renderComentariosPanelHtml(r, idx) + '</div>';
 
     cont.appendChild(card);
   });
+}
+
+// v6.1.0 — Pagina = cantidad de páginas del PDF. Vacío/0 = no se
+// muestra (el conteo falló o el documento todavía no pasó por el
+// backfill con un valor real).
+function formatearPaginas(p) {
+  const n = Number(p);
+  if (!n || n < 1) return '';
+  return n === 1 ? '1 pág.' : n + ' págs.';
+}
+
+// v6.1.0 — el aviso "también en N comentario(s)" abre el panel (sin
+// toggle: si ya estaba abierto, queda abierto).
+function abrirComentarios(idx) {
+  const panel = document.getElementById('comentarios-panel-' + idx);
+  if (!panel) return;
+  panelesAbiertos.add(idx);
+  panel.classList.add('abierto');
 }
 
 function resaltarSnippet(snippet) {
@@ -3286,12 +3383,12 @@ function renderResultadosListado() {
     const linkDescargar = idDrive ? ('https://drive.google.com/uc?export=download&id=' + idDrive) : (r.link || '#');
     const cantComentarios = (r.comentarios || []).length;
 
-    // Sin Pagina/snippet (no aplica: es un filtro por nombre, no por
-    // contenido) — la meta muestra solo la Carpeta, igual que arriba
-    // pero sin "Pág. N".
+    // Sin snippet (no aplica: es un filtro por nombre, no por
+    // contenido). v6.1.0 — la meta suma la cantidad de páginas.
+    const txtPaginasL = formatearPaginas(r.pagina);
     card.innerHTML =
       '<div class="resultado-doc">' + escapeHtml(r.documento) + '</div>' +
-      (r.carpeta ? '<div class="resultado-meta"><span class="resultado-carpeta">' + escapeHtml(r.carpeta) + '</span></div>' : '') +
+      ((txtPaginasL || r.carpeta) ? '<div class="resultado-meta">' + (txtPaginasL ? '<span>' + txtPaginasL + '</span>' : '') + (r.carpeta ? '<span class="resultado-carpeta">' + escapeHtml(r.carpeta) + '</span>' : '') + '</div>' : '') +
       (etiquetasHtml ? '<div class="resultado-etiquetas">' + etiquetasHtml + '</div>' : '') +
       '<div class="resultado-acciones">' +
       '<a class="btn-resultado ver" href="' + linkVer + '" target="_blank" rel="noopener">Ver</a>' +
@@ -3379,8 +3476,9 @@ function renderComentariosPanelHtml(r, idx) {
       } else {
         const esPropio = c.usuario === emailActual;
         const nombreMostrado = c.nombre || c.usuario;
+        const coincide = (r.comentarioMatchIds || []).indexOf(c.id) !== -1; // v6.1.0 — (a)
         html +=
-          '<div class="comentario-item' + (esPropio ? ' propio' : '') + '">' +
+          '<div class="comentario-item' + (esPropio ? ' propio' : '') + (coincide ? ' coincide' : '') + '">' +
           '<div class="comentario-avatar">' + escapeHtml(inicialesDeNombre(c.nombre, c.usuario)) + '</div>' +
           '<div class="comentario-cuerpo">' +
           '<div class="comentario-meta"><b>' + escapeHtml(nombreMostrado) + '</b> · ' + formatearFechaComentario(c.fecha) + (c.fechaEdicion ? ' (editado)' : '') + '</div>' +
@@ -4866,6 +4964,7 @@ async function cargarNodoCarpeta(folderId) {
       breadcrumbCarga = [{ id: r.carpeta.folderId, nombre: r.carpeta.nombre }];
     }
     renderExplorador(r.carpeta);
+    cargarPreviewEtiquetasAuto(r.carpeta.folderId, r.carpeta.cantidadPdf); // v6.1.0 — (b)
   } catch (err) {
     lista.innerHTML = '<div class="resultados-vacio">Sin conexión. Revisá tu internet e intentá de nuevo.</div>';
   }
@@ -5022,6 +5121,56 @@ async function agregarEtiquetaNueva() {
   }
 }
 
+// ── Vista previa de etiquetas automáticas (v6.1.0 — punto b) ──
+// Se pide al entrar a cada carpeta (en paralelo a lo demás). Las
+// pastillas arrancan marcadas; las destildadas viajan en cargarCarpeta
+// como "omitir" y el backend las agrega a etiquetas_omitidas. Si el
+// admin cambia de carpeta sin cargar, lo destildado se descarta (es
+// una elección sobre ESTA carpeta).
+let etiquetasAutoDestildadas = new Set();
+let previewEtiquetasSeq = 0; // descarta respuestas viejas si se navega rápido
+
+async function cargarPreviewEtiquetasAuto(folderId, cantidadPdf) {
+  const cont = document.getElementById('etiquetas-auto-pills');
+  etiquetasAutoDestildadas = new Set();
+  if (!cantidadPdf) {
+    cont.innerHTML = '<div class="facetas-vacio">Sin PDF en esta carpeta.</div>';
+    return;
+  }
+  const seq = ++previewEtiquetasSeq;
+  cont.innerHTML = '<div class="facetas-vacio">Calculando…</div>';
+  try {
+    const r = await llamarBackend('previsualizarEtiquetasAuto', { obraId: obraActual.obraId, email: emailActual, folderId: folderId });
+    if (seq !== previewEtiquetasSeq) return;
+    if (!r.ok) { cont.innerHTML = '<div class="facetas-vacio">' + escapeHtml(r.error || 'No se pudo calcular.') + '</div>'; return; }
+    renderPreviewEtiquetasAuto(r.etiquetas || []);
+  } catch (err) {
+    if (seq === previewEtiquetasSeq) cont.innerHTML = '<div class="facetas-vacio">Sin conexión.</div>';
+  }
+}
+
+function renderPreviewEtiquetasAuto(etiquetas) {
+  const cont = document.getElementById('etiquetas-auto-pills');
+  if (!etiquetas.length) {
+    cont.innerHTML = '<div class="facetas-vacio">Estos PDF no generan etiquetas automáticas.</div>';
+    return;
+  }
+  cont.innerHTML = '';
+  etiquetas.forEach(function (et) {
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = 'etiqueta-pill etiqueta-pill-auto' + (etiquetasAutoDestildadas.has(et.nombre) ? '' : ' activa');
+    pill.title = et.cantidad + (et.cantidad === 1 ? ' PDF la genera' : ' PDF la generan');
+    pill.innerHTML = '<span>' + escapeHtml(et.nombre) + '</span><span class="pill-count">' + et.cantidad + '</span>';
+    pill.onclick = function () {
+      if (etiquetasAutoDestildadas.has(et.nombre)) etiquetasAutoDestildadas.delete(et.nombre);
+      else etiquetasAutoDestildadas.add(et.nombre);
+      pill.classList.toggle('activa');
+    };
+    cont.appendChild(pill);
+  });
+}
+
 // ── Confirmación antes de Cargar/Recargar (v2.1.0) ──────────
 function pedirConfirmacionCarga(modo) {
   if (breadcrumbCarga.length === 0) return;
@@ -5033,7 +5182,10 @@ function pedirConfirmacionCarga(modo) {
     ? 'Se va a <b>reprocesar</b> todo lo que ya está indexado de esta carpeta, además de lo nuevo.'
     : 'Se va a indexar lo que todavía no esté cargado de esta carpeta.') +
     '<br><br>Carpeta: <b>' + escapeHtml(camino) + '</b><br>' +
-    cantidadPdfActualCarga + (cantidadPdfActualCarga === 1 ? ' PDF suelto esperado.' : ' PDF sueltos esperados.');
+    cantidadPdfActualCarga + (cantidadPdfActualCarga === 1 ? ' PDF suelto esperado.' : ' PDF sueltos esperados.') +
+    (etiquetasAutoDestildadas.size
+      ? '<br><br><b>' + etiquetasAutoDestildadas.size + '</b> etiqueta' + (etiquetasAutoDestildadas.size === 1 ? '' : 's') + ' automática' + (etiquetasAutoDestildadas.size === 1 ? '' : 's') + ' se va' + (etiquetasAutoDestildadas.size === 1 ? '' : 'n') + ' a agregar a la lista de omisiones.'
+      : '');
 
   const btnAceptar = document.getElementById('btn-confirm-aceptar');
   btnAceptar.onclick = function () { cerrarConfirmCarga(); ejecutarCarga(modo); };
@@ -5133,6 +5285,7 @@ function bloquearCargaUI(bloqueada) {
   document.getElementById('explorador-breadcrumb').classList.toggle('bloqueado', bloqueada);
   document.getElementById('explorador-lista').classList.toggle('bloqueado', bloqueada);
   document.getElementById('etiquetas-checkboxes').classList.toggle('bloqueado', bloqueada);
+  document.getElementById('etiquetas-auto-pills').classList.toggle('bloqueado', bloqueada); // v6.1.0
 }
 
 async function ejecutarCarga(modo) {
@@ -5149,8 +5302,10 @@ async function ejecutarCarga(modo) {
   try {
     const r = await llamarBackend('cargarCarpeta', {
       obraId: obraActual.obraId, email: emailActual, folderId: folderId,
-      camino: camino, etiquetas: etiquetas, modo: modo
+      camino: camino, etiquetas: etiquetas, modo: modo,
+      omitir: Array.from(etiquetasAutoDestildadas) // v6.1.0 — (b)
     });
+    if (r.ok) etiquetasAutoDestildadas = new Set(); // ya quedaron en etiquetas_omitidas
     if (!r.ok) {
       actualizarEntradaRegistro(idEntrada, { error: r.error || 'Error al cargar.' });
     } else {
