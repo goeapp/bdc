@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v6.1.1</title>
+<title>BDC — Buscador Documental de Contrato v6.1.2</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,6 +17,16 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
+  index_bdc_v6_1_2.html — v6.1.2 (30-sep-2026) — Etiquetas en minúscula y sin acentos
+
+  QUÉ CAMBIÓ EN v6.1.2 (respecto a v6.1.1) — la regla vive en el
+  backend (bdc_gas_v6_1_2.gs, normalizarEtiqueta_): toda etiqueta se
+  guarda en minúscula, sin acentos, conservando la ñ. En el frontend
+  solo cambia el aviso al agregar una etiqueta al catálogo: muestra el
+  valor YA normalizado que devolvió el backend (ej. se escribe
+  "Estructuras Metálicas" → "estructuras metalicas" agregada), para que
+  el usuario vea cómo quedó guardada.
+
   index_bdc_v6_1_1.html — v6.1.1 (30-sep-2026) — Palabras indexadas +
   secuencia de la pantalla de carga
 
@@ -2281,7 +2291,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v6.1.1</div>
+    <div class="caja-version">v6.1.2</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -2338,7 +2348,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.1.1</span>
+    <span class="hdr-version">v6.1.2</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
@@ -2439,7 +2449,7 @@ input { font-family: inherit; }
 <div id="pantalla-mapa">
   <header id="mapa-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.1.1</span>
+    <span class="hdr-version">v6.1.2</span>
     <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
   </header>
@@ -2467,7 +2477,7 @@ input { font-family: inherit; }
 <div id="pantalla-grafo">
   <header id="grafo-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.1.1</span>
+    <span class="hdr-version">v6.1.2</span>
     <span class="hdr-obra-nombre" id="grafo-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeGrafo()">← Buscador</button>
   </header>
@@ -2523,7 +2533,7 @@ input { font-family: inherit; }
 <div id="pantalla-dashboard">
   <header id="dashboard-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.1.1</span>
+    <span class="hdr-version">v6.1.2</span>
     <span class="hdr-obra-nombre" id="dashboard-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeDashboard()">← Buscador</button>
   </header>
@@ -2580,7 +2590,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.1.1</span>
+    <span class="hdr-version">v6.1.2</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -5153,7 +5163,7 @@ async function agregarEtiquetaNueva() {
     } else {
       input.value = '';
       msg.className = 'ok';
-      msg.textContent = '"' + texto + '" agregada.';
+      msg.textContent = '"' + (r.etiqueta || texto) + '" agregada.'; // v6.1.2 — valor ya normalizado por el backend
       cargarEtiquetasDisponiblesCarga(); // recarga el listado de checkboxes con la nueva
     }
   } catch (err) {
