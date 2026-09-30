@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v6.1.0</title>
+<title>BDC — Buscador Documental de Contrato v6.1.1</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,6 +17,26 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
+  index_bdc_v6_1_1.html — v6.1.1 (30-sep-2026) — Palabras indexadas +
+  secuencia de la pantalla de carga
+
+  QUÉ CAMBIÓ EN v6.1.1 (respecto a v6.1.0) — pedido de Ale tras
+  confirmar v6.1.0 en producción (diseño cerrado antes de codear).
+  Backend: bdc_gas_v6_1_1.gs.
+   - Palabras indexadas: el mensaje de inicio del buscador pasa a
+     "N documentos y M palabras indexados en esta obra." y el Dashboard
+     suma el KPI "Palabras indexadas" (número exacto con separador de
+     miles, es-AR).
+   - Secuencia de la pantalla de carga (bug de "tiempo/paso" marcado
+     por Ale): al hacer clic en otra carpeta, las pastillas de
+     etiquetas automáticas y lo destildado se borran AL INSTANTE
+     ("Calculando…"), en vez de quedar las de la carpeta anterior hasta
+     que responde el backend. Y cualquier respuesta que llegue de una
+     carpeta que ya no es la actual (navegación rápida) se descarta —
+     aplica al contador/subcarpetas (explorarSeq, nuevo) y a las
+     pastillas (previewEtiquetasSeq, ya existía, ahora se invalida
+     también al navegar).
+
   index_bdc_v6_1_0.html — v6.1.0 (30-sep-2026) — Comentarios en la búsqueda,
   etiquetas omitidas y cantidad de páginas
 
@@ -2261,7 +2281,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v6.1.0</div>
+    <div class="caja-version">v6.1.1</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -2318,7 +2338,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.1.0</span>
+    <span class="hdr-version">v6.1.1</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
@@ -2419,7 +2439,7 @@ input { font-family: inherit; }
 <div id="pantalla-mapa">
   <header id="mapa-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.1.0</span>
+    <span class="hdr-version">v6.1.1</span>
     <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
   </header>
@@ -2447,7 +2467,7 @@ input { font-family: inherit; }
 <div id="pantalla-grafo">
   <header id="grafo-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.1.0</span>
+    <span class="hdr-version">v6.1.1</span>
     <span class="hdr-obra-nombre" id="grafo-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeGrafo()">← Buscador</button>
   </header>
@@ -2503,7 +2523,7 @@ input { font-family: inherit; }
 <div id="pantalla-dashboard">
   <header id="dashboard-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.1.0</span>
+    <span class="hdr-version">v6.1.1</span>
     <span class="hdr-obra-nombre" id="dashboard-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeDashboard()">← Buscador</button>
   </header>
@@ -2560,7 +2580,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.1.0</span>
+    <span class="hdr-version">v6.1.1</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -3156,7 +3176,15 @@ function ejecutarBusqueda() {
 }
 
 function mostrarEstadoInicial() {
-  const totalTxt = resumenObra ? ('<span class="total-docs">' + resumenObra.totalDocumentos + '</span> documento' + (resumenObra.totalDocumentos === 1 ? '' : 's') + ' indexados en esta obra.') : 'Cargando...';
+  // v6.1.1 — suma la cantidad de palabras indexadas (totalPalabras del backend)
+  let totalTxt = 'Cargando...';
+  if (resumenObra) {
+    const nDocs = resumenObra.totalDocumentos;
+    const nPal = Number(resumenObra.totalPalabras) || 0;
+    totalTxt = '<span class="total-docs">' + nDocs.toLocaleString('es-AR') + '</span> documento' + (nDocs === 1 ? '' : 's') +
+      (nPal ? ' y <span class="total-docs">' + nPal.toLocaleString('es-AR') + '</span> palabra' + (nPal === 1 ? '' : 's') : '') +
+      ' indexados en esta obra.';
+  }
   document.getElementById('lista-resultados').innerHTML =
     '<div class="resultados-vacio resultados-inicial">' + totalTxt + '<br>Escribí un término y presioná Enter, o elegí un filtro a la derecha.</div>';
   document.getElementById('buscar-contador').textContent = '';
@@ -4542,6 +4570,7 @@ function renderDashboard(d) {
 function renderDashboardKpis(kpis) {
   const items = [
     { valor: kpis.totalDocumentos, label: 'Documentos indexados', acento: true },
+    { valor: (Number(kpis.totalPalabras) || 0).toLocaleString('es-AR'), label: 'Palabras indexadas', acento: true }, // v6.1.1
     { valor: kpis.totalFallidos, label: 'Documentos fallidos' },
     { valor: kpis.totalVacios, label: 'Documentos vacíos' },
     { valor: kpis.tasaExito + '%', label: 'Tasa de éxito de carga' },
@@ -4936,7 +4965,19 @@ function cambiarTabCarga(tab) {
 }
 
 // ── Explorador de carpetas ──────────────────────────────────
+// v6.1.1 — secuencia: cada navegación incrementa este contador; una
+// respuesta de explorarCarpeta que llega con un número viejo (el admin
+// ya se fue a otra carpeta) se descarta en vez de pisar la pantalla.
+let explorarSeq = 0;
+
 async function cargarNodoCarpeta(folderId) {
+  const seq = ++explorarSeq;
+  // v6.1.1 — pastillas de etiquetas automáticas: se borran AL INSTANTE
+  // (antes quedaban las de la carpeta anterior hasta que respondía el
+  // backend) y se invalida cualquier vista previa todavía en curso.
+  previewEtiquetasSeq++;
+  etiquetasAutoDestildadas = new Set();
+  document.getElementById('etiquetas-auto-pills').innerHTML = '<div class="facetas-vacio">Calculando…</div>';
   const lista = document.getElementById('explorador-lista');
   lista.innerHTML = '<div class="resultados-cargando">Cargando...</div>';
   document.getElementById('explorador-sync').className = ''; // oculto hasta tener respuesta
@@ -4956,6 +4997,7 @@ async function cargarNodoCarpeta(folderId) {
   const camino = breadcrumbCarga.length ? breadcrumbCarga.map(function (n) { return n.nombre; }).join(' > ') : undefined;
   try {
     const r = await llamarBackend('explorarCarpeta', { obraId: obraActual.obraId, email: emailActual, folderId: folderId || undefined, camino: camino });
+    if (seq !== explorarSeq) return; // v6.1.1 — respuesta de una carpeta que ya no es la actual
     if (!r.ok) {
       lista.innerHTML = '<div class="resultados-vacio">' + escapeHtml(r.error || 'Error al explorar la carpeta.') + '</div>';
       return;
@@ -4966,6 +5008,7 @@ async function cargarNodoCarpeta(folderId) {
     renderExplorador(r.carpeta);
     cargarPreviewEtiquetasAuto(r.carpeta.folderId, r.carpeta.cantidadPdf); // v6.1.0 — (b)
   } catch (err) {
+    if (seq !== explorarSeq) return; // v6.1.1
     lista.innerHTML = '<div class="resultados-vacio">Sin conexión. Revisá tu internet e intentá de nuevo.</div>';
   }
 }
