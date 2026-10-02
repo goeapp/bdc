@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v6.2.0</title>
+<title>BDC — Buscador Documental de Contrato v6.3.0</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,6 +17,34 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
+  index_bdc_v6_3_0.html — v6.3.0 (02-oct-2026) — Modo mantenimiento
+
+  QUÉ CAMBIÓ EN v6.3.0 (respecto a v6.2.1) — Entrega 2 (backend:
+  bdc_gas_v6_3_0.gs, interruptor en config_app del Maestro):
+   - llamarBackend: (a) agrega el email en curso a todo pedido que no lo
+     traiga (obtenerResumenObra no lo mandaba; el backend lo necesita
+     para saber si es probador y para log_actividad); (b) si la
+     respuesta es { mantenimiento:true, ok:false } muestra la pantalla
+     de mantenimiento y deja el pedido "en espera" (no sigue el flujo
+     ni muestra errores debajo); (c) modoMantenimiento:true → franja
+     "Modo mantenimiento activo" abajo al centro (probadores); sin el flag, la
+     franja se oculta sola.
+   - Pantalla de mantenimiento (#mant-overlay): "Herramienta en
+     mantenimiento — Intentá más tarde." + mensaje opcional + botón
+     "Reintentar". Agarra también a quien ya estaba adentro (en su
+     próximo pedido).
+   - Login sin sesión guardada: consulta estadoApp en segundo plano y,
+     si hay mantenimiento, muestra la pantalla ANTES de pedir el email,
+     con el link "Soy probador — ingresar" que vuelve al login.
+
+  index_bdc_v6_2_1.html — v6.2.1 (02-oct-2026) — Sin diálogo "Registro de uso"
+
+  QUÉ CAMBIÓ EN v6.2.1 (respecto a v6.2.0) — pedido de Ale: se quita el
+  diálogo único "Registro de uso" al entrar a una obra. Queda solo la
+  línea fija en el login. El registro de actividad no cambia. Backend
+  sin cambios (sigue bdc_gas_v6_2_0.gs; 'aviso_registro' queda en la
+  lista blanca sin uso).
+
   index_bdc_v6_2_0.html — v6.2.0 (02-oct-2026) — Registro de actividad
 
   QUÉ CAMBIÓ EN v6.2.0 (respecto a v6.1.2) — Entrega 1 del diseño
@@ -985,6 +1013,31 @@ input { font-family: inherit; }
 .caja-sub   { font-size: .78rem; color: var(--muted); margin-bottom: 28px; }
 .caja-title { font-size: 1rem; font-weight: 600; margin-bottom: 6px; }
 .caja-desc  { font-size: .8rem; color: var(--muted); margin-bottom: 22px; line-height: 1.6; }
+/* v6.3.0 — modo mantenimiento */
+#mant-overlay {
+  position: fixed; inset: 0; z-index: 9000; display: none;
+  align-items: center; justify-content: center; padding: 16px;
+  background: var(--bg);
+}
+#mant-overlay.visible { display: flex; }
+#mant-overlay .caja { max-width: 420px; width: 100%; }
+.mant-icono   { font-size: 2.4rem; margin-bottom: 10px; }
+.mant-titulo  { font-size: 1.15rem; font-weight: 700; color: var(--accent2); margin-bottom: 6px; }
+.mant-texto   { font-size: .85rem; color: var(--muted); line-height: 1.6; }
+.mant-mensaje { margin-top: 14px; padding: 10px 12px; border-radius: 8px; background: var(--tag-bg); color: var(--tag-fg); font-size: .85rem; line-height: 1.5; white-space: pre-wrap; }
+.mant-mensaje:empty { display: none; }
+#mant-overlay .btn-accion { margin-top: 20px; }
+.mant-probador { display: inline-block; margin-top: 14px; font-size: .72rem; color: var(--muted); background: none; border: none; text-decoration: underline; cursor: pointer; }
+#mant-franja {
+  /* abajo al centro: arriba tapaba los botones del header (Dashboard / Cargar documentos) */
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); z-index: 8999;
+  display: none; padding: 3px 14px 2px; border-radius: 8px 8px 0 0;
+  background: repeating-linear-gradient(45deg, #b45309, #b45309 8px, #92400e 8px, #92400e 16px);
+  color: #fff; font-size: .64rem; font-weight: 700; letter-spacing: .6px; white-space: nowrap;
+  box-shadow: 0 -2px 6px rgba(0,0,0,.25); pointer-events: none;
+}
+#mant-franja.visible { display: block; }
+
 /* v6.2.0 — aviso fijo de registro de uso en el login */
 .caja-aviso-registro { font-size: .68rem; color: var(--muted); margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--border); line-height: 1.5; }
 
@@ -2314,11 +2367,24 @@ input { font-family: inherit; }
 <body>
 
 <!-- ═══════════════ LOGIN — pwa_pin (5 estados) ═══════════════ -->
+<!-- v6.3.0 — modo mantenimiento -->
+<div id="mant-franja">🛠 MODO MANTENIMIENTO ACTIVO · solo probadores</div>
+<div id="mant-overlay" role="alertdialog" aria-labelledby="mant-titulo">
+  <div class="caja">
+    <div class="mant-icono">🛠️</div>
+    <div class="mant-titulo" id="mant-titulo">Herramienta en mantenimiento</div>
+    <div class="mant-texto">Estamos actualizando BDC. Intentá más tarde.</div>
+    <div class="mant-mensaje" id="mant-mensaje"></div>
+    <button class="btn-accion" onclick="location.reload()">Reintentar</button>
+    <br><button class="mant-probador" id="mant-probador" onclick="ingresarComoProbador()">Soy probador — ingresar</button>
+  </div>
+</div>
+
 <div id="login-screen" class="pantalla-centrada visible">
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v6.2.0</div>
+    <div class="caja-version">v6.3.0</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -2378,7 +2444,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.2.0</span>
+    <span class="hdr-version">v6.3.0</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
@@ -2479,7 +2545,7 @@ input { font-family: inherit; }
 <div id="pantalla-mapa">
   <header id="mapa-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.2.0</span>
+    <span class="hdr-version">v6.3.0</span>
     <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
   </header>
@@ -2507,7 +2573,7 @@ input { font-family: inherit; }
 <div id="pantalla-grafo">
   <header id="grafo-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.2.0</span>
+    <span class="hdr-version">v6.3.0</span>
     <span class="hdr-obra-nombre" id="grafo-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeGrafo()">← Buscador</button>
   </header>
@@ -2563,7 +2629,7 @@ input { font-family: inherit; }
 <div id="pantalla-dashboard">
   <header id="dashboard-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.2.0</span>
+    <span class="hdr-version">v6.3.0</span>
     <span class="hdr-obra-nombre" id="dashboard-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeDashboard()">← Buscador</button>
   </header>
@@ -2620,7 +2686,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.2.0</span>
+    <span class="hdr-version">v6.3.0</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -2764,8 +2830,6 @@ const COOLDOWN_SEG = 120; // debe coincidir con PWAPIN_CONFIG.COOLDOWN_SEGUNDOS 
 const SESION_ID = (window.crypto && crypto.randomUUID)
   ? crypto.randomUUID()
   : 'S' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
-const AVISO_REGISTRO_KEY = 'bdc_aviso_registro_v1';
-const AVISO_REGISTRO_TEXTO = 'Para mejorar BDC, se registra la actividad dentro de la herramienta: búsquedas, documentos consultados y funciones usadas. No se registra nada fuera de BDC.';
 let ultimaConsulta = { termino: '', origen: 'busqueda' }; // v6.2.0 — contexto para abrir_documento
 
 // ── ESTADO EN MEMORIA ───────────────────────────────────────
@@ -2778,13 +2842,46 @@ let facetasSeleccionadas = { etiquetas: new Set(), carpetas: new Set() };
 // ── HELPERS DE FETCH ────────────────────────────────────────
 async function llamarBackend(action, params) {
   const body = Object.assign({ action: action, sesionId: SESION_ID }, params || {}); // v6.2.0 — sesionId
+  if (!body.email && emailActual) body.email = emailActual; // v6.3.0 — todo pedido identifica al usuario
   const resp = await fetch(BDC_GAS_URL, {
     method : 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // evita preflight CORS en Apps Script
     body   : JSON.stringify(body)
   });
   if (!resp.ok) throw new Error('HTTP ' + resp.status);
-  return resp.json();
+  const r = await resp.json();
+  // v6.3.0 — modo mantenimiento
+  if (r && r.mantenimiento === true && r.ok === false) {
+    mostrarMantenimiento(r.mensaje, false);
+    return new Promise(function () {}); // el flujo queda en espera: la pantalla tapa todo
+  }
+  if (r && typeof r === 'object') mostrarFranjaMantenimiento(r.modoMantenimiento === true);
+  return r;
+}
+
+// ── MODO MANTENIMIENTO (v6.3.0) ─────────────────────────────
+// conProbador: muestra el link "Soy probador — ingresar" (solo en el
+// login sin sesión: los probadores con sesión pasan directo).
+function mostrarMantenimiento(mensaje, conProbador) {
+  document.getElementById('mant-mensaje').textContent = mensaje || '';
+  document.getElementById('mant-probador').style.display = conProbador ? 'inline-block' : 'none';
+  document.getElementById('mant-overlay').classList.add('visible');
+  mostrarFranjaMantenimiento(false);
+}
+function mostrarFranjaMantenimiento(activa) {
+  document.getElementById('mant-franja').classList.toggle('visible', !!activa);
+}
+function ingresarComoProbador() {
+  document.getElementById('mant-overlay').classList.remove('visible');
+  const input = document.getElementById('input-email');
+  if (input) input.focus();
+}
+// Login sin sesión: consulta en segundo plano; si falla, sigue el login normal.
+async function chequearMantenimientoEnLogin() {
+  try {
+    const r = await llamarBackend('estadoApp', {});
+    if (r && r.ok && r.mantenimiento) mostrarMantenimiento(r.mensaje, true);
+  } catch (err) { /* sin red: el login sigue como siempre */ }
 }
 
 /**
@@ -2809,17 +2906,6 @@ function registrarEvento(evento, objeto, resultado, detalle) {
       })
     }).catch(function () {});
   } catch (err) { /* nunca frena la UI */ }
-}
-
-// v6.2.0 — aviso único "Registro de uso" para usuarios con sesión
-// guardada (no vuelven a ver el login). Una vez por usuario y navegador.
-function mostrarAvisoRegistroSiCorresponde() {
-  const clave = AVISO_REGISTRO_KEY + ':' + emailActual;
-  try { if (localStorage.getItem(clave)) return; } catch (err) { return; }
-  mostrarAviso(AVISO_REGISTRO_TEXTO, 'Registro de uso', { icono: 'ℹ️', textoBoton: 'Entendido' }).then(function (entendido) {
-    try { localStorage.setItem(clave, new Date().toISOString()); } catch (err) {}
-    registrarEvento('aviso_registro', '', entendido ? 'entendido' : 'cerrado', {});
-  });
 }
 
 // ── SESIÓN (localStorage) ───────────────────────────────────
@@ -2858,6 +2944,7 @@ function boot() {
   if (!sesion) {
     mostrarPantalla('login-screen');
     mostrarPasoLogin('email');
+    chequearMantenimientoEnLogin(); // v6.3.0
     return;
   }
 
@@ -3159,7 +3246,6 @@ function mostrarBuscador(origen) {
   configurarInputBuscar();
   mostrarEstadoInicial();
   cargarResumenObra();
-  mostrarAvisoRegistroSiCorresponde(); // v6.2.0
 }
 
 function configurarInputBuscar() {
