@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v6.1.2</title>
+<title>BDC — Buscador Documental de Contrato v6.2.0</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -17,6 +17,31 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
+  index_bdc_v6_2_0.html — v6.2.0 (02-oct-2026) — Registro de actividad
+
+  QUÉ CAMBIÓ EN v6.2.0 (respecto a v6.1.2) — Entrega 1 del diseño
+  "registro de actividad" (decisiones cerradas con Ale el 02-oct antes
+  de codear). Backend: bdc_gas_v6_2_0.gs (log_actividad en el Maestro).
+   - SESION_ID: identificador único generado al cargar la página; viaja
+     en TODOS los pedidos (llamarBackend lo agrega solo). Une los eventos
+     de una misma visita para que el agente vea secuencias.
+   - registrarEvento(): aviso al backend sin esperar respuesta (fetch con
+     keepalive, errores ignorados) — nunca frena ni rompe la UI.
+     Eventos que manda el frontend: seleccion_obra (lista / única /
+     guardada), abrir_documento (Ver o Descargar, con posición, término
+     y origen búsqueda/listado), ver_comentarios, filtro (chip de
+     Facetas, "Limpiar" o nodo del Mapa), buscar_nodo y ver_nodo
+     (Conexiones), aviso_registro.
+     Login, apertura, búsquedas, listado, vistas, comentarios,
+     favoritos y cargas los registra el BACKEND solo (no hay aviso
+     extra desde acá).
+   - Aviso de registro de uso: línea fija en el login (usuarios nuevos)
+     + diálogo único "Registro de uso" al entrar a una obra (usuarios
+     con sesión guardada, que no vuelven a ver el login). Se recuerda
+     por usuario en el navegador (bdc_aviso_registro_v1:<email>).
+   - mostrarAviso() acepta opciones { icono, textoBoton } (default igual
+     que antes: ⚠️ / Aceptar).
+
   index_bdc_v6_1_2.html — v6.1.2 (30-sep-2026) — Etiquetas en minúscula y sin acentos
 
   QUÉ CAMBIÓ EN v6.1.2 (respecto a v6.1.1) — la regla vive en el
@@ -960,6 +985,8 @@ input { font-family: inherit; }
 .caja-sub   { font-size: .78rem; color: var(--muted); margin-bottom: 28px; }
 .caja-title { font-size: 1rem; font-weight: 600; margin-bottom: 6px; }
 .caja-desc  { font-size: .8rem; color: var(--muted); margin-bottom: 22px; line-height: 1.6; }
+/* v6.2.0 — aviso fijo de registro de uso en el login */
+.caja-aviso-registro { font-size: .68rem; color: var(--muted); margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--border); line-height: 1.5; }
 
 /* Pasos de login — solo uno visible a la vez */
 .login-paso { display: none; }
@@ -2291,7 +2318,7 @@ input { font-family: inherit; }
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v6.1.2</div>
+    <div class="caja-version">v6.2.0</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -2332,6 +2359,9 @@ input { font-family: inherit; }
       <div class="msg-error visible" id="error-auth-msg"></div>
       <button class="btn-accion" onclick="volverAPedirEmail()">Volver a intentar</button>
     </div>
+
+    <!-- v6.2.0 — aviso fijo de registro de uso (usuarios nuevos) -->
+    <div class="caja-aviso-registro">El uso de BDC queda registrado para mejorar la herramienta.</div>
   </div>
 </div>
 
@@ -2348,7 +2378,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.1.2</span>
+    <span class="hdr-version">v6.2.0</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
@@ -2449,7 +2479,7 @@ input { font-family: inherit; }
 <div id="pantalla-mapa">
   <header id="mapa-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.1.2</span>
+    <span class="hdr-version">v6.2.0</span>
     <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
   </header>
@@ -2477,7 +2507,7 @@ input { font-family: inherit; }
 <div id="pantalla-grafo">
   <header id="grafo-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.1.2</span>
+    <span class="hdr-version">v6.2.0</span>
     <span class="hdr-obra-nombre" id="grafo-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeGrafo()">← Buscador</button>
   </header>
@@ -2533,7 +2563,7 @@ input { font-family: inherit; }
 <div id="pantalla-dashboard">
   <header id="dashboard-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.1.2</span>
+    <span class="hdr-version">v6.2.0</span>
     <span class="hdr-obra-nombre" id="dashboard-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeDashboard()">← Buscador</button>
   </header>
@@ -2590,7 +2620,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.1.2</span>
+    <span class="hdr-version">v6.2.0</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -2729,6 +2759,15 @@ const OBRA_KEY     = 'bdc_obra_actual';
 const SESION_DIAS  = 7;
 const COOLDOWN_SEG = 120; // debe coincidir con PWAPIN_CONFIG.COOLDOWN_SEGUNDOS del backend
 
+// v6.2.0 — una "sesión" = una carga de la página (incluido F5). Viaja en
+// todos los pedidos para que log_actividad agrupe los eventos de una visita.
+const SESION_ID = (window.crypto && crypto.randomUUID)
+  ? crypto.randomUUID()
+  : 'S' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+const AVISO_REGISTRO_KEY = 'bdc_aviso_registro_v1';
+const AVISO_REGISTRO_TEXTO = 'Para mejorar BDC, se registra la actividad dentro de la herramienta: búsquedas, documentos consultados y funciones usadas. No se registra nada fuera de BDC.';
+let ultimaConsulta = { termino: '', origen: 'busqueda' }; // v6.2.0 — contexto para abrir_documento
+
 // ── ESTADO EN MEMORIA ───────────────────────────────────────
 let emailActual        = '';   // email en curso durante el login
 let cooldownInterval    = null;
@@ -2738,7 +2777,7 @@ let facetasSeleccionadas = { etiquetas: new Set(), carpetas: new Set() };
 
 // ── HELPERS DE FETCH ────────────────────────────────────────
 async function llamarBackend(action, params) {
-  const body = Object.assign({ action: action }, params || {});
+  const body = Object.assign({ action: action, sesionId: SESION_ID }, params || {}); // v6.2.0 — sesionId
   const resp = await fetch(BDC_GAS_URL, {
     method : 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // evita preflight CORS en Apps Script
@@ -2746,6 +2785,41 @@ async function llamarBackend(action, params) {
   });
   if (!resp.ok) throw new Error('HTTP ' + resp.status);
   return resp.json();
+}
+
+/**
+ * v6.2.0 — registro de actividad desde el frontend (action
+ * registrarEvento, lista blanca en el backend). Fire-and-forget: no se
+ * espera la respuesta y cualquier error se ignora — registrar nunca
+ * frena ni rompe lo que hace el usuario. keepalive permite que el aviso
+ * salga aunque el click abra otra pestaña o se cierre la página.
+ */
+function registrarEvento(evento, objeto, resultado, detalle) {
+  if (!emailActual) return;
+  try {
+    fetch(BDC_GAS_URL, {
+      method   : 'POST',
+      headers  : { 'Content-Type': 'text/plain;charset=utf-8' },
+      keepalive: true,
+      body     : JSON.stringify({
+        action: 'registrarEvento', sesionId: SESION_ID, email: emailActual,
+        obraId: obraActual ? obraActual.obraId : '', nombreObra: obraActual ? obraActual.nombreObra : '',
+        evento: evento, objeto: objeto == null ? '' : objeto, resultado: resultado == null ? '' : resultado,
+        detalle: detalle || {}
+      })
+    }).catch(function () {});
+  } catch (err) { /* nunca frena la UI */ }
+}
+
+// v6.2.0 — aviso único "Registro de uso" para usuarios con sesión
+// guardada (no vuelven a ver el login). Una vez por usuario y navegador.
+function mostrarAvisoRegistroSiCorresponde() {
+  const clave = AVISO_REGISTRO_KEY + ':' + emailActual;
+  try { if (localStorage.getItem(clave)) return; } catch (err) { return; }
+  mostrarAviso(AVISO_REGISTRO_TEXTO, 'Registro de uso', { icono: 'ℹ️', textoBoton: 'Entendido' }).then(function (entendido) {
+    try { localStorage.setItem(clave, new Date().toISOString()); } catch (err) {}
+    registrarEvento('aviso_registro', '', entendido ? 'entendido' : 'cerrado', {});
+  });
 }
 
 // ── SESIÓN (localStorage) ───────────────────────────────────
@@ -2954,7 +3028,7 @@ function continuarDespuesDeLogin() {
   const obraGuardada = leerObraGuardada();
   if (obraGuardada) {
     obraActual = obraGuardada;
-    mostrarBuscador();
+    mostrarBuscador('guardada');
     revalidarObraActual(); // v4.2.0 — ver comentario en la función: fix del header con datos viejos tras F5
   } else {
     cargarObras();
@@ -3037,7 +3111,7 @@ async function cargarObras() {
     if (r.obras.length === 1) {
       obraActual = r.obras[0];
       guardarObraActual(obraActual);
-      mostrarBuscador();
+      mostrarBuscador('unica');
       return;
     }
 
@@ -3056,7 +3130,7 @@ function renderObras(obras) {
     card.onclick = function () {
       obraActual = obra;
       guardarObraActual(obra);
-      mostrarBuscador();
+      mostrarBuscador('lista');
     };
     card.innerHTML =
       '<span class="obra-nombre">' + escapeHtml(obra.nombreObra) + '</span>' +
@@ -3066,8 +3140,9 @@ function renderObras(obras) {
 }
 
 // ── BUSCADOR ─────────────────────────────────────────────────
-function mostrarBuscador() {
+function mostrarBuscador(origen) {
   mostrarPantalla('app-visible');
+  registrarEvento('seleccion_obra', obraActual.nombreObra, '', { origen: origen || 'lista' }); // v6.2.0
   document.getElementById('hdr-obra-nombre').textContent = obraActual.nombreObra;
   document.getElementById('hdr-email').textContent = emailActual;
   document.getElementById('btn-cargar-datos').style.display = obraActual.esAdminObra ? 'inline-block' : 'none';
@@ -3084,6 +3159,7 @@ function mostrarBuscador() {
   configurarInputBuscar();
   mostrarEstadoInicial();
   cargarResumenObra();
+  mostrarAvisoRegistroSiCorresponde(); // v6.2.0
 }
 
 function configurarInputBuscar() {
@@ -3176,6 +3252,7 @@ function ejecutarBusqueda() {
   const termino = document.getElementById('input-buscar').value.trim();
   const soloFavoritos = document.getElementById('chk-solo-favoritos').checked; // v5.2.0
   const modoListado = document.getElementById('chk-modo-listado').checked; // v5.3.0
+  ultimaConsulta = { termino: termino, origen: modoListado ? 'listado' : 'busqueda' }; // v6.2.0
   if (modoListado) {
     buscarModoListado(termino, soloFavoritos);
     return;
@@ -3353,8 +3430,8 @@ function renderResultados() {
       snippetHtml +
       (etiquetasHtml ? '<div class="resultado-etiquetas">' + etiquetasHtml + '</div>' : '') +
       '<div class="resultado-acciones">' +
-      '<a class="btn-resultado ver" href="' + linkVer + '" target="_blank" rel="noopener">Ver</a>' +
-      '<a class="btn-resultado" href="' + linkDescargar + '" target="_blank" rel="noopener">Descargar</a>' +
+      '<a class="btn-resultado ver" href="' + linkVer + '" target="_blank" rel="noopener" onclick="registrarAperturaDoc(' + idx + ', \'ver\')">Ver</a>' +
+      '<a class="btn-resultado" href="' + linkDescargar + '" target="_blank" rel="noopener" onclick="registrarAperturaDoc(' + idx + ', \'descargar\')">Descargar</a>' +
       '<button class="resultado-comentarios-toggle' + (cantComentarios > 0 ? ' tiene-comentarios' : '') + '" id="comentarios-toggle-' + idx + '" onclick="toggleComentarios(' + idx + ')">💬 ' + cantComentarios + '</button>' +
       '<button class="resultado-favorito-toggle' + (r.favoritoPropio ? ' marcado' : '') + '" id="favorito-toggle-' + idx + '" onclick="toggleFavoritoUI(' + idx + ')" aria-label="Marcar favorito">' + (r.favoritoPropio ? '★' : '☆') + '</button>' +
       '</div>' +
@@ -3378,8 +3455,10 @@ function formatearPaginas(p) {
 function abrirComentarios(idx) {
   const panel = document.getElementById('comentarios-panel-' + idx);
   if (!panel) return;
+  const yaAbierto = panelesAbiertos.has(idx);
   panelesAbiertos.add(idx);
   panel.classList.add('abierto');
+  if (!yaAbierto) registrarVerComentarios(idx, 'aviso'); // v6.2.0
 }
 
 function resaltarSnippet(snippet) {
@@ -3429,8 +3508,8 @@ function renderResultadosListado() {
       ((txtPaginasL || r.carpeta) ? '<div class="resultado-meta">' + (txtPaginasL ? '<span>' + txtPaginasL + '</span>' : '') + (r.carpeta ? '<span class="resultado-carpeta">' + escapeHtml(r.carpeta) + '</span>' : '') + '</div>' : '') +
       (etiquetasHtml ? '<div class="resultado-etiquetas">' + etiquetasHtml + '</div>' : '') +
       '<div class="resultado-acciones">' +
-      '<a class="btn-resultado ver" href="' + linkVer + '" target="_blank" rel="noopener">Ver</a>' +
-      '<a class="btn-resultado" href="' + linkDescargar + '" target="_blank" rel="noopener">Descargar</a>' +
+      '<a class="btn-resultado ver" href="' + linkVer + '" target="_blank" rel="noopener" onclick="registrarAperturaDoc(' + idx + ', \'ver\')">Ver</a>' +
+      '<a class="btn-resultado" href="' + linkDescargar + '" target="_blank" rel="noopener" onclick="registrarAperturaDoc(' + idx + ', \'descargar\')">Descargar</a>' +
       '<button class="resultado-comentarios-toggle' + (cantComentarios > 0 ? ' tiene-comentarios' : '') + '" id="comentarios-toggle-' + idx + '" onclick="toggleComentarios(' + idx + ')">💬 ' + cantComentarios + '</button>' +
       '<button class="resultado-favorito-toggle' + (r.favoritoPropio ? ' marcado' : '') + '" id="favorito-toggle-' + idx + '" onclick="toggleFavoritoUI(' + idx + ')" aria-label="Marcar favorito">' + (r.favoritoPropio ? '★' : '☆') + '</button>' +
       '</div>' +
@@ -3460,7 +3539,26 @@ function toggleComentarios(idx) {
   } else {
     panelesAbiertos.add(idx);
     panel.classList.add('abierto');
+    registrarVerComentarios(idx, 'boton'); // v6.2.0 — solo al abrir
   }
+}
+
+// v6.2.0 — abrir_documento: el link abre Drive como siempre; en paralelo
+// sale el aviso (no se espera, no frena la apertura).
+function registrarAperturaDoc(idx, accion) {
+  const r = resultadosActuales[idx];
+  if (!r) return;
+  registrarEvento('abrir_documento', r.documento, accion, {
+    carpeta: r.carpeta || '', posicion: idx + 1, total: resultadosActuales.length,
+    termino: ultimaConsulta.termino, origen: ultimaConsulta.origen,
+    origenMatch: r.origenMatch || ''
+  });
+}
+
+function registrarVerComentarios(idx, desde) {
+  const r = resultadosActuales[idx];
+  if (!r) return;
+  registrarEvento('ver_comentarios', r.documento, (r.comentarios || []).length, { carpeta: r.carpeta || '', desde: desde });
 }
 
 function formatearFechaComentario(iso) {
@@ -3806,11 +3904,13 @@ function renderFacetaGrupo(items, tipo, contId, limpiarBtnId) {
 function toggleFaceta(tipo, valor) {
   const set = facetasSeleccionadas[tipo];
   if (set.has(valor)) set.delete(valor); else set.add(valor);
+  registrarEvento('filtro', valor, set.has(valor) ? 'on' : 'off', { tipo: tipo === 'carpetas' ? 'carpeta' : 'etiqueta', origen: 'facetas' }); // v6.2.0
   renderFacetas();
   ejecutarBusqueda();
 }
 
 function limpiarFaceta(tipo) {
+  registrarEvento('filtro', '', 'limpiar', { tipo: tipo === 'carpetas' ? 'carpeta' : 'etiqueta', origen: 'facetas', cantidad: facetasSeleccionadas[tipo].size }); // v6.2.0
   facetasSeleccionadas[tipo].clear();
   renderFacetas();
   ejecutarBusqueda();
@@ -3972,7 +4072,7 @@ function renderMapaD3() {
       const rutas = d.data.rutas;
       if (!rutas || !rutas.length) return;
       event.stopPropagation();
-      filtrarPorNodoMapa(rutas);
+      filtrarPorNodoMapa(rutas, d.data.nombre);
     });
   badgeEnter.append('circle').attr('cy', -MAPA_NODE_H / 2 + 2).attr('r', 11);
   badgeEnter.append('text').attr('class', 'mapa-badge-texto')
@@ -4055,8 +4155,9 @@ function renderMapaD3() {
 // sí, ver buscarEnObra_/carpetasFiltro) y cierra el mapa — así una
 // carpeta con subcarpetas filtra también lo que está más abajo, no
 // solo lo que matchea su propio nombre exacto.
-function filtrarPorNodoMapa(rutas) {
+function filtrarPorNodoMapa(rutas, nombreNodo) {
   if (!rutas || !rutas.length) return;
+  registrarEvento('filtro', nombreNodo || '', 'on', { tipo: 'carpeta', origen: 'mapa', rutas: rutas.length }); // v6.2.0
   facetasSeleccionadas.carpetas = new Set(rutas);
   renderFacetas();
   volverABuscadorDesdeMapa();
@@ -4343,6 +4444,7 @@ function abrirPanelGrafo(nodoId) {
   if (!nodo) return;
   grafoNodoSeleccionadoId = nodoId;
   const esEtiqueta = nodo.tipo === 'etiqueta';
+  registrarEvento('ver_nodo', nodo.nombre, nodo.tipo || 'documento', { tipoConexion: grafoTipoActual, conexiones: nodo.conexiones || 0, carpeta: nodo.carpeta || '' }); // v6.2.0
 
   d3.selectAll('.grafo-nodo-circulo').classed('seleccionado', function (d) { return d.id === nodoId; });
   // v4.0.1 — etiqueta de texto oculta por default (ver inicializarGrafoD3);
@@ -4460,6 +4562,7 @@ function buscarEnGrafo() {
   const matches = grafoNodosSimActual.filter(function (d) {
     return normalizarTextoGrafo_(d.nombre).indexOf(termino) !== -1;
   });
+  registrarEvento('buscar_nodo', document.getElementById('grafo-input-buscar').value.trim(), matches.length, { tipoConexion: grafoTipoActual }); // v6.2.0
   if (!matches.length) { mostrarToast('Sin coincidencias'); return; }
 
   detenerParpadeoGrafo_(); // corta cualquier resaltado de una búsqueda anterior antes de arrancar uno nuevo
@@ -5271,14 +5374,15 @@ function mostrarConfirm(titulo, desc, opciones) {
   });
 }
 
-function mostrarAviso(mensaje, titulo) {
+function mostrarAviso(mensaje, titulo, opciones) {
+  opciones = opciones || {}; // v6.2.0 — { icono, textoBoton }
   return new Promise(function (resolve) {
     dialogoResolve = resolve;
-    document.getElementById('dialogo-icono').textContent = '⚠️';
+    document.getElementById('dialogo-icono').textContent = opciones.icono || '⚠️';
     document.getElementById('dialogo-title').textContent = titulo || 'Aviso';
     document.getElementById('dialogo-desc').textContent = mensaje;
     document.getElementById('dialogo-botones').innerHTML =
-      '<button class="btn-dialogo-aceptar" style="flex:1" onclick="cerrarDialogo(true)">Aceptar</button>';
+      '<button class="btn-dialogo-aceptar" style="flex:1" onclick="cerrarDialogo(true)">' + escapeHtml(opciones.textoBoton || 'Aceptar') + '</button>';
     document.getElementById('dialogo-overlay').classList.add('visible');
   });
 }
