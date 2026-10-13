@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BDC — Buscador Documental de Contrato v6.3.0</title>
+<title>BDC — Buscador Documental de Contrato v7.0.0</title>
 <!-- PWA — manifest.json + íconos reales (v2.4.0), reemplaza el
      favicon emoji provisorio de versiones anteriores. -->
 <link rel="manifest" href="manifest.json">
@@ -15,8 +15,33 @@
 <link rel="icon" type="image/png" sizes="32x32" href="icons/bdc_icon_32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="icons/bdc_icon_16.png">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/bdc_icon_180.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <!--
+  index_bdc_v7_0_0.html — v7.0.0 (13-oct-2026) — Migración a Supabase
+
+  QUÉ CAMBIÓ EN v7.0.0 (respecto a v6.3.0) — diseño cerrado con Ale el
+  13-oct (Diseno_BDC_v7_0_0.md), patrón LO v8.0.0:
+   - Datos en Supabase (proyecto PWAgoe, tablas bdc_ + goe_). Las
+     pantallas son las mismas: llamarBackend(action) devuelve lo mismo
+     que el GAS v6.4.1, pero va directo a la base.
+   - Login: código por mail de Supabase Auth (como LO y MdT). El mail
+     dice "BDC" (emailRedirectTo = goeapp.github.io/bdc/). La sesión no
+     vence; "Cerrar sesión" la cierra solo en este dispositivo.
+   - Obras y permisos: los de GOE Admin (goe_mis_obras). "Cargar
+     documentos" aparece con perfil editar o administrar.
+   - Búsqueda: corre en la base (bdc_buscar), con la misma lógica de
+     siempre: frase, palabra completa, palabras sueltas, sin acentos,
+     comentarios, etiquetas, carpetas y solo favoritos.
+   - Facetas, Mapa, Conexiones, Dashboard y Modo listado: se calculan
+     acá, con una lista liviana de la obra (sin el texto de los PDF):
+     siempre al día y sin esperas.
+   - Pantalla de carga: va a BDC Sync (GAS ayudante, cuenta goecdg),
+     siempre con la sesión de la persona. Solo se navega dentro de la
+     carpeta raíz de la obra (la carga GOE Admin → BDC).
+   - Actividad: a goe_actividad (app bdc), mismos eventos que v6.
+   - Sin modo mantenimiento (se sacó; si hace falta, se cambia el index).
+
   index_bdc_v6_3_0.html — v6.3.0 (02-oct-2026) — Modo mantenimiento
 
   QUÉ CAMBIÓ EN v6.3.0 (respecto a v6.2.1) — Entrega 2 (backend:
@@ -1013,31 +1038,6 @@ input { font-family: inherit; }
 .caja-sub   { font-size: .78rem; color: var(--muted); margin-bottom: 28px; }
 .caja-title { font-size: 1rem; font-weight: 600; margin-bottom: 6px; }
 .caja-desc  { font-size: .8rem; color: var(--muted); margin-bottom: 22px; line-height: 1.6; }
-/* v6.3.0 — modo mantenimiento */
-#mant-overlay {
-  position: fixed; inset: 0; z-index: 9000; display: none;
-  align-items: center; justify-content: center; padding: 16px;
-  background: var(--bg);
-}
-#mant-overlay.visible { display: flex; }
-#mant-overlay .caja { max-width: 420px; width: 100%; }
-.mant-icono   { font-size: 2.4rem; margin-bottom: 10px; }
-.mant-titulo  { font-size: 1.15rem; font-weight: 700; color: var(--accent2); margin-bottom: 6px; }
-.mant-texto   { font-size: .85rem; color: var(--muted); line-height: 1.6; }
-.mant-mensaje { margin-top: 14px; padding: 10px 12px; border-radius: 8px; background: var(--tag-bg); color: var(--tag-fg); font-size: .85rem; line-height: 1.5; white-space: pre-wrap; }
-.mant-mensaje:empty { display: none; }
-#mant-overlay .btn-accion { margin-top: 20px; }
-.mant-probador { display: inline-block; margin-top: 14px; font-size: .72rem; color: var(--muted); background: none; border: none; text-decoration: underline; cursor: pointer; }
-#mant-franja {
-  /* abajo al centro: arriba tapaba los botones del header (Dashboard / Cargar documentos) */
-  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); z-index: 8999;
-  display: none; padding: 3px 14px 2px; border-radius: 8px 8px 0 0;
-  background: repeating-linear-gradient(45deg, #b45309, #b45309 8px, #92400e 8px, #92400e 16px);
-  color: #fff; font-size: .64rem; font-weight: 700; letter-spacing: .6px; white-space: nowrap;
-  box-shadow: 0 -2px 6px rgba(0,0,0,.25); pointer-events: none;
-}
-#mant-franja.visible { display: block; }
-
 /* v6.2.0 — aviso fijo de registro de uso en el login */
 .caja-aviso-registro { font-size: .68rem; color: var(--muted); margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--border); line-height: 1.5; }
 
@@ -2367,24 +2367,11 @@ input { font-family: inherit; }
 <body>
 
 <!-- ═══════════════ LOGIN — pwa_pin (5 estados) ═══════════════ -->
-<!-- v6.3.0 — modo mantenimiento -->
-<div id="mant-franja">🛠 MODO MANTENIMIENTO ACTIVO · solo probadores</div>
-<div id="mant-overlay" role="alertdialog" aria-labelledby="mant-titulo">
-  <div class="caja">
-    <div class="mant-icono">🛠️</div>
-    <div class="mant-titulo" id="mant-titulo">Herramienta en mantenimiento</div>
-    <div class="mant-texto">Estamos actualizando BDC. Intentá más tarde.</div>
-    <div class="mant-mensaje" id="mant-mensaje"></div>
-    <button class="btn-accion" onclick="location.reload()">Reintentar</button>
-    <br><button class="mant-probador" id="mant-probador" onclick="ingresarComoProbador()">Soy probador — ingresar</button>
-  </div>
-</div>
-
 <div id="login-screen" class="pantalla-centrada visible">
   <div class="caja">
     <span class="caja-emoji">🔎</span>
     <div class="caja-logo">BDC</div>
-    <div class="caja-version">v6.3.0</div>
+    <div class="caja-version">v7.0.0</div>
     <div class="caja-sub">Buscador Documental de Contrato</div>
 
     <!-- Paso 1: pedir email -->
@@ -2401,7 +2388,7 @@ input { font-family: inherit; }
       <div class="caja-title">Ingresá el código</div>
       <div class="caja-desc" id="codigo-desc">Te lo enviamos por mail. Vence en 10 minutos.</div>
       <div class="msg-error" id="codigo-error"></div>
-      <input type="text" class="input-pin" id="input-pin" placeholder="······" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
+      <input type="text" class="input-pin" id="input-pin" placeholder="······" maxlength="10" inputmode="numeric" autocomplete="one-time-code">
       <button class="btn-accion" id="btn-validar-codigo" onclick="onValidarCodigo()">Ingresar</button>
       <button class="btn-secundario" id="btn-reenviar" onclick="onEnviarCodigo(true)">Reenviar código</button>
     </div>
@@ -2444,7 +2431,7 @@ input { font-family: inherit; }
 <div id="app">
   <header id="app-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.3.0</span>
+    <span class="hdr-version">v7.0.0</span>
     <span class="hdr-obra-nombre" id="hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-cambiar-obra" onclick="cambiarObra()">Cambiar obra</button>
     <!-- v3.0.0 — Vista Mapa Mental: de consulta, visible para todos
@@ -2545,7 +2532,7 @@ input { font-family: inherit; }
 <div id="pantalla-mapa">
   <header id="mapa-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.3.0</span>
+    <span class="hdr-version">v7.0.0</span>
     <span class="hdr-obra-nombre" id="mapa-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeMapa()">← Buscador</button>
   </header>
@@ -2573,7 +2560,7 @@ input { font-family: inherit; }
 <div id="pantalla-grafo">
   <header id="grafo-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.3.0</span>
+    <span class="hdr-version">v7.0.0</span>
     <span class="hdr-obra-nombre" id="grafo-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeGrafo()">← Buscador</button>
   </header>
@@ -2629,7 +2616,7 @@ input { font-family: inherit; }
 <div id="pantalla-dashboard">
   <header id="dashboard-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.3.0</span>
+    <span class="hdr-version">v7.0.0</span>
     <span class="hdr-obra-nombre" id="dashboard-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" onclick="volverABuscadorDesdeDashboard()">← Buscador</button>
   </header>
@@ -2686,7 +2673,7 @@ input { font-family: inherit; }
 <div id="pantalla-carga">
   <header id="carga-header">
     <span class="hdr-logo">BDC</span>
-    <span class="hdr-version">v6.3.0</span>
+    <span class="hdr-version">v7.0.0</span>
     <span class="hdr-obra-nombre" id="carga-hdr-obra-nombre"></span>
     <button class="hdr-btn-cambiar-obra" id="btn-volver-buscador-carga" onclick="volverABuscador()">← Buscador</button>
     <span class="hdr-sep"></span>
@@ -2809,24 +2796,29 @@ input { font-family: inherit; }
 
 <script>
 /* ============================================================
-   BDC — index_bdc_v1.html — lógica
+   BDC — index_bdc_v7_0_0.html — lógica (v7.0.0: datos en Supabase)
    ============================================================ */
 
 // ── CONFIG ──────────────────────────────────────────────────
-// URL real del deploy web de BDC (Implementar → Nueva implementación
-// → Aplicación web), completada 29-ago-2026. Regla de deploy: usar
-// siempre "Gestionar implementaciones → Nueva versión" sobre esta
-// misma implementación de acá en adelante, nunca "Nueva implementación"
-// desde cero, para que esta URL /exec no cambie.
-const BDC_GAS_URL = 'https://script.google.com/macros/s/AKfycbyueo3tUNezvg_ovzliXhWJ6jRjC3-DqotDXYmKiH-RdlTLSr6hNewiZmYaEu75nPjoRQ/exec';
+// v7.0.0 — Supabase (proyecto PWAgoe) + BDC Sync (GAS ayudante, cuenta goecdg).
+// El GAS v6.4.1 y sus Sheets quedan como respaldo, sin uso.
+const APP_VERSION   = 'v7.0.0';
+const SUPABASE_URL  = 'https://uhuftsxrzwhmvzygcuvp.supabase.co';
+const SUPABASE_KEY  = 'sb_publishable_TCibRAnzgaDIbn_MIirw6w_FltKG8X3';
+const BDC_SYNC_URL  = 'https://script.google.com/macros/s/AKfycbzWkbV4CloXj9z44otj99o5zJRaosey1lR7tZxT0rEsyvldpp-p9kYaErfKitlRq_Y0/exec';
+const REDIRECT_MAIL = 'https://goeapp.github.io/bdc/';   // la plantilla del mail lo usa para poner "BDC"
+// Sesión propia de BDC: todas las PWA viven en goeapp.github.io (mismo localStorage)
+const sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true, storageKey: 'bdc-sb-auth' }
+}) : null;
 
 const SESION_KEY   = 'bdc_sesion';
 const OBRA_KEY     = 'bdc_obra_actual';
 const SESION_DIAS  = 7;
-const COOLDOWN_SEG = 120; // debe coincidir con PWAPIN_CONFIG.COOLDOWN_SEGUNDOS del backend
+const COOLDOWN_SEG = 60; // Supabase admite un código nuevo por minuto
 
 // v6.2.0 — una "sesión" = una carga de la página (incluido F5). Viaja en
-// todos los pedidos para que log_actividad agrupe los eventos de una visita.
+// todos los eventos de actividad para agrupar los de una misma visita.
 const SESION_ID = (window.crypto && crypto.randomUUID)
   ? crypto.randomUUID()
   : 'S' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
@@ -2836,76 +2828,448 @@ let ultimaConsulta = { termino: '', origen: 'busqueda' }; // v6.2.0 — contexto
 let emailActual        = '';   // email en curso durante el login
 let cooldownInterval    = null;
 let obraActual          = null; // { obraId, nombreObra, esAdminObra }
-let resultadosActuales  = [];   // último resultado crudo de buscarEnObra_
+let resultadosActuales  = [];   // último resultado crudo de la búsqueda o del listado
 let facetasSeleccionadas = { etiquetas: new Set(), carpetas: new Set() };
 
-// ── HELPERS DE FETCH ────────────────────────────────────────
-async function llamarBackend(action, params) {
-  const body = Object.assign({ action: action, sesionId: SESION_ID }, params || {}); // v6.2.0 — sesionId
-  if (!body.email && emailActual) body.email = emailActual; // v6.3.0 — todo pedido identifica al usuario
-  const resp = await fetch(BDC_GAS_URL, {
-    method : 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // evita preflight CORS en Apps Script
-    body   : JSON.stringify(body)
-  });
-  if (!resp.ok) throw new Error('HTTP ' + resp.status);
-  const r = await resp.json();
-  // v6.3.0 — modo mantenimiento
-  if (r && r.mantenimiento === true && r.ok === false) {
-    mostrarMantenimiento(r.mensaje, false);
-    return new Promise(function () {}); // el flujo queda en espera: la pantalla tapa todo
+// ══════════════════════════════════════════════════════════════
+// v7.0.0 — DATOS EN SUPABASE (reemplaza llamarBackend → GAS)
+// ══════════════════════════════════════════════════════════════
+// El resto de la app no cambia: llamarBackend(action, params) devuelve lo
+// mismo que devolvía el GAS v6.4.1, pero ahora:
+//  · la búsqueda corre EN LA BASE (función bdc_buscar, misma lógica);
+//  · Facetas, Mapa, Conexiones, Dashboard y Modo listado se calculan acá,
+//    con una lista liviana de la obra (sin el texto de los PDF);
+//  · comentarios, favoritos y etiquetas: funciones bdc_* de la base, que
+//    controlan los permisos (goe_mi_nivel) y fijan el autor;
+//  · lo que necesita Google (leer carpetas y PDF de Drive) va a BDC Sync,
+//    siempre con la sesión de la persona.
+// Un rechazo de la base vuelve como {ok:false, error} (mismo trato que un
+// rechazo del GAS); una falla de red tira una excepción (mismo trato que antes).
+
+const ACCIONES_BDC_SYNC = new Set(['explorarCarpeta', 'previsualizarEtiquetasAuto', 'cargarCarpeta', 'reintentarPendiente', 'reintentarVacio', 'cargarComoMarcaManual']);
+const TIMEOUT_BDC_SYNC = { cargarCarpeta: 380000, reintentarPendiente: 200000, reintentarVacio: 200000, cargarComoMarcaManual: 120000 };
+
+function errRed_() { return new Error('No se pudo conectar con el servidor. Revisá tu conexión y volvé a intentar.'); }
+
+/** Error de supabase-js → rechazo de la base ({ok:false}) o falla de red (excepción). */
+function sbResultado_(action, res) {
+  if (!res.error) return res.data;
+  const e = res.error;
+  const msg = String(e.message || e.msg || '');
+  if (!e.code && !e.details && (/fetch|network|Failed|Load failed|NetworkError/i.test(msg) || !msg)) {
+    console.error('[datos]', action, '— red:', e);
+    throw errRed_();
   }
-  if (r && typeof r === 'object') mostrarFranjaMantenimiento(r.modoMantenimiento === true);
+  // Un rechazo de una regla (P0001: duplicado, sin permiso…) es un aviso para el usuario, no un error del programa
+  (e.code === 'P0001' ? console.warn : console.error)('[datos]', action, '— rechazo de la base:', e);
+  if (e.code === 'PGRST301' || e.code === 'PGRST303' || /JWT/i.test(msg)) return { ok: false, motivo: 'sin_sesion', error: 'La sesión venció. Volvé a ingresar.' };
+  return { ok: false, error: msg || 'La base rechazó la operación.' };
+}
+async function rpc_(action, fn, args) { return sbResultado_(action, await sb.rpc(fn, args)); }
+async function select_(action, consulta) {
+  const d = sbResultado_(action, await consulta);
+  return d;
+}
+
+async function llamarBackend(action, params) {
+  params = params || {};
+  if (!navigator.onLine) throw new Error('Estás sin conexión a internet.');
+  if (!sb) throw errRed_();   // no cargó la librería de Supabase (sin señal al abrir)
+  if (ACCIONES_BDC_SYNC.has(action)) return llamarBdcSync_(action, params, false);
+  const obraId = params.obraId || (obraActual ? obraActual.obraId : '');
+  switch (action) {
+    case 'validarSesion': return datosValidarSesion_();
+    case 'listarObrasUsuario': return datosObras_();
+    case 'obtenerResumenObra': return datosResumen_(obraId);
+    case 'buscar': return datosBuscar_(obraId, params);
+    case 'listarDocumentosObra': return datosListado_(obraId, params);
+    case 'agregarComentario': return datosComentario_('agregar', obraId, params);
+    case 'editarComentario': return datosComentario_('editar', obraId, params);
+    case 'borrarComentario': return datosComentario_('borrar', obraId, params);
+    case 'toggleFavorito': return datosFavorito_(obraId, params);
+    case 'obtenerArbolCarpetas': return datosArbol_(obraId);
+    case 'obtenerGrafoObra': return datosGrafo_(obraId, params.tipoConexion);
+    case 'obtenerDashboardObra': return datosDashboard_(obraId);
+    case 'listarEtiquetasDisponibles': {
+      const d = await select_(action, sb.from('bdc_etiquetas').select('etiqueta').eq('obra_id', obraId).order('creado_en').order('etiqueta'));
+      if (d && d.ok === false) return d;
+      return { ok: true, etiquetas: (d || []).map(function (x) { return x.etiqueta; }) };
+    }
+    case 'agregarEtiquetaDisponible': {
+      const r = await rpc_(action, 'bdc_etiqueta_agregar', { p_obra: obraId, p_etiqueta: params.etiqueta || '' });
+      if (r && r.ok) registrarActividad_('etiqueta_nueva', r.etiqueta, 'OK', { escrita: String(params.etiqueta || '') });
+      else if (r) registrarActividad_('etiqueta_nueva', String(params.etiqueta || ''), /similar/i.test(r.error || '') ? 'duplicada' : 'ERROR', { error: r.error || '' });
+      return r;
+    }
+    case 'listarPendientesCarga': {
+      const d = await select_(action, sb.from('bdc_fallidos').select('documento, carpeta, link, ultimo_error, etiquetas_manuales, fecha_ultimo_intento, cantidad_intentos').eq('obra_id', obraId).order('id'));
+      if (d && d.ok === false) return d;
+      return { ok: true, pendientes: (d || []).map(function (f) {
+        return { documento: f.documento, carpeta: f.carpeta, link: f.link, error: f.ultimo_error, etiquetasManuales: f.etiquetas_manuales,
+          fechaUltimoIntento: f.fecha_ultimo_intento, cantidadIntentos: f.cantidad_intentos };
+      }) };
+    }
+    case 'listarDocumentosVacios': {
+      const d = await select_(action, sb.from('bdc_vacios').select('documento, carpeta, link, etiquetas_manuales, fecha_ultimo_intento, cantidad_intentos').eq('obra_id', obraId).order('id'));
+      if (d && d.ok === false) return d;
+      return { ok: true, vacios: (d || []).map(function (f) {
+        return { documento: f.documento, carpeta: f.carpeta, link: f.link, etiquetasManuales: f.etiquetas_manuales,
+          fechaUltimoIntento: f.fecha_ultimo_intento, cantidadIntentos: f.cantidad_intentos };
+      }) };
+    }
+    case 'listarTiposMarcaManual': {
+      const d = await select_(action, sb.from('bdc_marcas').select('etiqueta_visible, marca_interna').eq('activo', true).order('orden'));
+      if (d && d.ok === false) return d;
+      return { ok: true, tipos: (d || []).map(function (t) { return { etiquetaVisible: t.etiqueta_visible, marcaInterna: t.marca_interna }; }) };
+    }
+  }
+  throw new Error('Acción desconocida: ' + action);
+}
+
+/** Sesión de Supabase + persona habilitada en BDC (= validarSesion de pwa_pin). */
+async function datosValidarSesion_() {
+  const s = await sb.auth.getSession();
+  const session = s && s.data && s.data.session;
+  if (!session) return { ok: false, motivo: 'sin_sesion' };
+  const email = String(session.user.email || '').toLowerCase();
+  const [rEntra, rPersona] = await Promise.all([sb.rpc('goe_puede_entrar', { p_app: 'bdc' }), sb.rpc('goe_mi_persona')]);
+  const entra = sbResultado_('goe_puede_entrar', rEntra);
+  const personaId = sbResultado_('goe_mi_persona', rPersona);
+  if (entra && entra.ok === false) return entra;
+  if (!personaId) return { ok: false, motivo: 'no_encontrado' };
+  if (entra !== true) return { ok: false, motivo: 'inactivo' };
+  let nombre = email;
+  const rp = await sb.from('goe_personas').select('nombre_apellido').eq('id', personaId).maybeSingle();
+  if (!rp.error && rp.data) nombre = rp.data.nombre_apellido || email;
+  return { ok: true, email: email, nombreApellido: nombre, noExpira: true };
+}
+
+/** Obras de la persona en BDC (= listarObrasUsuario). esAdminObra = puede cargar (nivel editar o más). */
+async function datosObras_() {
+  const [rObras, rAdmin] = await Promise.all([sb.rpc('goe_mis_obras', { p_app: 'bdc' }), sb.rpc('goe_es_admin_global')]);
+  const obras = sbResultado_('goe_mis_obras', rObras);
+  if (obras && obras.ok === false) return obras;
+  const esAdmin = sbResultado_('goe_es_admin_global', rAdmin) === true;
+  return { ok: true, esAdminGlobal: esAdmin, obras: (obras || []).map(function (o) {
+    return { obraId: o.obra_id, nombreObra: o.codigo + ' ' + o.nombre_corto, esAdminObra: Number(o.nivel) >= 2 };
+  }) };
+}
+
+// ── Lista liviana de la obra (sin el texto): se pide fresca al entrar a la obra,
+//    al volver de Cargar y al abrir Mapa / Conexiones / Dashboard / Modo listado.
+let listaObra = null;   // { obraId, documentos:[…] }
+async function obtenerListaObra_(obraId, fresca) {
+  if (!fresca && listaObra && listaObra.obraId === obraId) return listaObra;
+  const r = await rpc_('bdc_cargar_obra', 'bdc_cargar_obra', { p_obra: obraId });
+  if (!r || !r.ok) return r || { ok: false, error: 'No se pudo leer la obra.' };
+  listaObra = { ok: true, obraId: obraId, documentos: r.documentos || [], tieneCarpeta: !!r.tieneCarpeta, nivel: r.nivel };
+  return listaObra;
+}
+function etiquetasDeDoc_(d) { return String(d.etiquetas || '').split(',').map(function (e) { return e.trim(); }).filter(Boolean); }
+function claveDoc_(d) { return d.documento + '|||' + String(d.carpeta || '').trim(); }
+function ordenarConteo_(conteo, top) {
+  const arr = Object.keys(conteo).sort(function (a, b) { return conteo[b] - conteo[a]; })
+    .map(function (nombre) { return { nombre: nombre, cantidad: conteo[nombre] }; });
+  return top ? arr.slice(0, top) : arr;
+}
+/** Comentarios / favoritos cambiados: la lista liviana queda al día sin volver a pedirla. */
+function actualizarDocEnLista_(documento, carpeta, cambios) {
+  if (!listaObra) return;
+  listaObra.documentos.forEach(function (d) { if (d.documento === documento && d.carpeta === carpeta) Object.assign(d, cambios); });
+}
+
+/** = obtenerResumenObra_ (Facetas sin filtro + mensaje de inicio). */
+async function datosResumen_(obraId) {
+  const l = await obtenerListaObra_(obraId, true);
+  if (!l.ok) return l;
+  const ce = {}, cc = {};
+  let palabras = 0;
+  l.documentos.forEach(function (d) {
+    palabras += Number(d.palabras) || 0;
+    etiquetasDeDoc_(d).forEach(function (e) { ce[e] = (ce[e] || 0) + 1; });
+    if (d.carpeta) cc[d.carpeta] = (cc[d.carpeta] || 0) + 1;
+  });
+  return { ok: true, totalDocumentos: l.documentos.length, totalPalabras: palabras, etiquetas: ordenarConteo_(ce), carpetas: ordenarConteo_(cc) };
+}
+
+/** Búsqueda en la base (= buscarEnObra_). */
+async function datosBuscar_(obraId, p) {
+  const termino = String(p.termino || '').trim();
+  const etiquetas = Array.isArray(p.etiquetas) ? p.etiquetas : [];
+  const carpetas = Array.isArray(p.carpetas) ? p.carpetas : [];
+  if (!termino && !etiquetas.length && !carpetas.length && !p.soloFavoritos) return { ok: true, resultados: [] };
+  const r = await rpc_('buscar', 'bdc_buscar', { p_obra: obraId, p_termino: termino, p_etiquetas: etiquetas, p_carpetas: carpetas,
+    p_palabra_completa: !!p.palabraCompleta, p_palabras_sueltas: !!p.palabrasSueltas, p_solo_favoritos: !!p.soloFavoritos });
+  if (r && r.ok) {
+    const res = r.resultados || [];
+    const docs = {};
+    res.forEach(function (x) { docs[x.documento + '|||' + x.carpeta] = true; });
+    let modo = 'contiene';
+    if (p.palabrasSueltas && termino.split(/\s+/).filter(Boolean).length >= 2) modo = 'palabras_sueltas';
+    else if (p.palabraCompleta) modo = 'palabra_completa';
+    registrarActividad_('busqueda', termino, res.length, { modo: modo, etiquetas: etiquetas, carpetas: carpetas, soloFavoritos: !!p.soloFavoritos,
+      documentos: Object.keys(docs).length, enComentario: res.filter(function (x) { return x.origenMatch === 'comentario'; }).length });
+  }
   return r;
 }
 
-// ── MODO MANTENIMIENTO (v6.3.0) ─────────────────────────────
-// conProbador: muestra el link "Soy probador — ingresar" (solo en el
-// login sin sesión: los probadores con sesión pasan directo).
-function mostrarMantenimiento(mensaje, conProbador) {
-  document.getElementById('mant-mensaje').textContent = mensaje || '';
-  document.getElementById('mant-probador').style.display = conProbador ? 'inline-block' : 'none';
-  document.getElementById('mant-overlay').classList.add('visible');
-  mostrarFranjaMantenimiento(false);
+/** Modo listado (= listarDocumentosObra_): un documento por tarjeta, filtro por nombre, orden alfabético. */
+async function datosListado_(obraId, p) {
+  const l = await obtenerListaObra_(obraId, true);
+  if (!l.ok) return l;
+  const filtro = normTexto_(String(p.filtroNombre || '').trim());
+  const etq = Array.isArray(p.etiquetas) && p.etiquetas.length ? new Set(p.etiquetas) : null;
+  const carp = Array.isArray(p.carpetas) && p.carpetas.length ? new Set(p.carpetas) : null;
+  const docs = l.documentos.filter(function (d) {
+    if (filtro && normTexto_(d.documento).indexOf(filtro) === -1) return false;
+    if (etq && !etiquetasDeDoc_(d).some(function (e) { return etq.has(e); })) return false;
+    if (carp && !carp.has(d.carpeta)) return false;
+    if (p.soloFavoritos && !d.favoritoPropio) return false;
+    return true;
+  }).map(function (d) {
+    return { documento: d.documento, pagina: d.pagina, carpeta: d.carpeta, etiquetas: d.etiquetas, link: d.link,
+      comentarios: (d.comentarios || []).slice(), favoritoPropio: !!d.favoritoPropio };
+  });
+  docs.sort(function (a, b) { return a.documento.localeCompare(b.documento, 'es'); });
+  registrarActividad_('listado', String(p.filtroNombre || '').trim(), docs.length,
+    { etiquetas: p.etiquetas || [], carpetas: p.carpetas || [], soloFavoritos: !!p.soloFavoritos });
+  return { ok: true, documentos: docs };
 }
-function mostrarFranjaMantenimiento(activa) {
-  document.getElementById('mant-franja').classList.toggle('visible', !!activa);
+function normTexto_(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+
+async function datosComentario_(op, obraId, p) {
+  let r;
+  if (op === 'agregar') r = await rpc_('agregarComentario', 'bdc_comentario_agregar', { p_obra: obraId, p_documento: p.documento, p_carpeta: p.carpeta || '', p_texto: p.texto || '', p_nombre: p.nombre || '' });
+  else if (op === 'editar') r = await rpc_('editarComentario', 'bdc_comentario_editar', { p_obra: obraId, p_documento: p.documento, p_carpeta: p.carpeta || '', p_id: p.comentarioId, p_texto: p.texto || '' });
+  else r = await rpc_('borrarComentario', 'bdc_comentario_borrar', { p_obra: obraId, p_documento: p.documento, p_carpeta: p.carpeta || '', p_id: p.comentarioId });
+  if (r && r.ok) {
+    actualizarDocEnLista_(p.documento, p.carpeta || '', { comentarios: r.comentarios || [] });
+    registrarActividad_('comentario', String(p.documento || ''), op, { carpeta: p.carpeta || '', comentarioId: op === 'agregar' ? (r.comentarioId || '') : (p.comentarioId || '') });
+  }
+  return r;
 }
-function ingresarComoProbador() {
-  document.getElementById('mant-overlay').classList.remove('visible');
-  const input = document.getElementById('input-email');
-  if (input) input.focus();
+
+async function datosFavorito_(obraId, p) {
+  const r = await rpc_('toggleFavorito', 'bdc_favorito_toggle', { p_obra: obraId, p_documento: p.documento, p_carpeta: p.carpeta || '' });
+  if (r && r.ok) {
+    actualizarDocEnLista_(p.documento, p.carpeta || '', { favoritoPropio: !!r.marcado });
+    registrarActividad_('favorito', String(p.documento || ''), r.marcado ? 'on' : 'off', { carpeta: p.carpeta || '' });
+  }
+  return r;
 }
-// Login sin sesión: consulta en segundo plano; si falla, sigue el login normal.
-async function chequearMantenimientoEnLogin() {
+
+/** Mapa Documental (= obtenerArbolCarpetas_). La raíz es el nombre de la obra. */
+async function datosArbol_(obraId) {
+  const l = await obtenerListaObra_(obraId, true);
+  if (!l.ok) return l;
+  const porRuta = {}, vistos = {};
+  l.documentos.forEach(function (d) {
+    const carpeta = String(d.carpeta || '').trim();
+    if (!carpeta) return;
+    const k = d.documento + '|||' + carpeta;
+    if (vistos[k]) return;
+    vistos[k] = true;
+    porRuta[carpeta] = (porRuta[carpeta] || 0) + 1;
+  });
+  const raiz = { nombre: obraActual ? obraActual.nombreObra : obraId, ruta: null, cantidadPropia: 0, hijos: {} };
+  Object.keys(porRuta).forEach(function (ruta) {
+    const partes = ruta.split('>').map(function (x) { return x.trim(); }).filter(Boolean);
+    let nodo = raiz, acum = '';
+    partes.forEach(function (parte) {
+      acum = acum ? (acum + ' > ' + parte) : parte;
+      if (!nodo.hijos[parte]) nodo.hijos[parte] = { nombre: parte, ruta: acum, cantidadPropia: 0, hijos: {} };
+      nodo = nodo.hijos[parte];
+    });
+    nodo.cantidadPropia = porRuta[ruta];
+  });
+  function resolver(n) {
+    const hijos = Object.keys(n.hijos).sort(function (a, b) { return a.localeCompare(b, 'es'); }).map(function (k) { return resolver(n.hijos[k]); });
+    let cantidad = n.cantidadPropia;
+    let rutas = (n.cantidadPropia > 0 && n.ruta) ? [n.ruta] : [];
+    hijos.forEach(function (h) { cantidad += h.cantidad; rutas = rutas.concat(h.rutas); });
+    return { nombre: n.nombre, cantidad: cantidad, rutas: rutas, hijos: hijos };
+  }
+  registrarActividad_('vista', 'mapa', '', null);
+  return { ok: true, arbol: resolver(raiz) };
+}
+
+/** Conexiones (= obtenerGrafoObra_): bipartito por etiquetas, o referencias entre documentos. */
+function armarGrafo_(documentos, tipoConexion) {
+  const docs = {};
+  documentos.forEach(function (d) {
+    const k = claveDoc_(d);
+    if (docs[k]) return;
+    docs[k] = { documento: d.documento, carpeta: String(d.carpeta || '').trim(), etiquetas: etiquetasDeDoc_(d), codigo: String(d.codigo || '').trim(),
+      referencias: String(d.referencias || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean) };
+  });
+  const claves = Object.keys(docs);
+  const edgesMap = {}, nodosEtq = [];
+  if (tipoConexion === 'etiquetas') {
+    const vistas = {};
+    claves.forEach(function (k) {
+      docs[k].etiquetas.forEach(function (e) {
+        vistas[e] = true;
+        edgesMap[k + '->etiqueta:' + e] = { origen: k, destino: 'etiqueta:' + e, tipo: 'etiqueta' };
+      });
+    });
+    Object.keys(vistas).forEach(function (e) { nodosEtq.push({ id: 'etiqueta:' + e, tipo: 'etiqueta', nombre: e, carpeta: '', etiquetas: [] }); });
+  } else {
+    const deCodigo = {};
+    claves.forEach(function (k) { if (docs[k].codigo) deCodigo[docs[k].codigo] = k; });
+    claves.forEach(function (ko) {
+      docs[ko].referencias.forEach(function (cod) {
+        const kd = deCodigo[cod];
+        if (!kd || kd === ko) return;
+        const key = ko + '->' + kd;
+        if (!edgesMap[key]) edgesMap[key] = { origen: ko, destino: kd, tipo: 'referencia', codigos: [] };
+        if (edgesMap[key].codigos.indexOf(cod) === -1) edgesMap[key].codigos.push(cod);
+      });
+    });
+  }
+  const edges = Object.keys(edgesMap).map(function (k) { return edgesMap[k]; });
+  const cnx = {};
+  edges.forEach(function (e) { cnx[e.origen] = (cnx[e.origen] || 0) + 1; cnx[e.destino] = (cnx[e.destino] || 0) + 1; });
+  const nodos = claves.map(function (k) {
+    const d = docs[k];
+    return { id: k, tipo: 'documento', nombre: d.documento, carpeta: d.carpeta, etiquetas: d.etiquetas, conexiones: cnx[k] || 0 };
+  });
+  nodosEtq.forEach(function (n) { n.conexiones = cnx[n.id] || 0; });
+  return { ok: true, nodos: nodos.concat(nodosEtq), edges: edges, docs: docs, deCodigo: null };
+}
+async function datosGrafo_(obraId, tipoConexion) {
+  const l = await obtenerListaObra_(obraId, true);
+  if (!l.ok) return l;
+  const g = armarGrafo_(l.documentos, tipoConexion);
+  registrarActividad_('vista', 'conexiones', '', { tipoConexion: tipoConexion === 'etiquetas' ? 'etiquetas' : 'referencias', nodos: g.nodos.length, conexiones: g.edges.length });
+  return { ok: true, nodos: g.nodos, edges: g.edges };
+}
+
+/** Dashboard (= obtenerDashboardObra_): lista liviana + fallidos, vacíos y búsquedas. */
+async function datosDashboard_(obraId) {
+  const [l, extra] = await Promise.all([obtenerListaObra_(obraId, true), rpc_('bdc_dashboard_datos', 'bdc_dashboard_datos', { p_obra: obraId })]);
+  if (!l.ok) return l;
+  if (!extra || !extra.ok) return extra || { ok: false, error: 'No se pudo armar el dashboard.' };
+  const ce = {}, cc = {}, cf = {}, porDia = {};
+  let conCodigo = 0, conEtiqueta = 0, palabras = 0;
+  const docs = [];
+  const vistos = {};
+  l.documentos.forEach(function (d) {
+    palabras += Number(d.palabras) || 0;
+    const k = claveDoc_(d);
+    if (vistos[k]) return;
+    vistos[k] = true;
+    docs.push(d);
+    const et = etiquetasDeDoc_(d);
+    et.forEach(function (e) { ce[e] = (ce[e] || 0) + 1; });
+    const carp = String(d.carpeta || '').trim();
+    if (carp) cc[carp] = (cc[carp] || 0) + 1;
+    if (d.familia) cf[d.familia] = (cf[d.familia] || 0) + 1;
+    if (d.codigo) conCodigo++;
+    if (et.length) conEtiqueta++;
+    if (d.dia) porDia[d.dia] = (porDia[d.dia] || 0) + 1;
+  });
+  const total = docs.length;
+  const g = armarGrafo_(l.documentos, 'referencias');
+  const hubs = g.nodos.filter(function (n) { return n.conexiones > 0; }).sort(function (a, b) { return b.conexiones - a.conexiones; }).slice(0, 10)
+    .map(function (n) { return { documento: n.nombre, carpeta: n.carpeta, conexiones: n.conexiones }; });
+  const deCodigo = {};
+  Object.keys(g.docs).forEach(function (k) { if (g.docs[k].codigo) deCodigo[g.docs[k].codigo] = k; });
+  const crudas = {};
+  Object.keys(g.docs).forEach(function (k) { g.docs[k].referencias.forEach(function (c) { if (!deCodigo[c]) crudas[c] = true; }); });
+  const conectadas = {};
+  g.nodos.forEach(function (n) { if (n.conexiones > 0) conectadas[n.id] = true; });
+  let conConexion = 0;
+  docs.forEach(function (d) { if (etiquetasDeDoc_(d).length || conectadas[claveDoc_(d)]) conConexion++; });
+  const fallidos = extra.fallidos || [];
+  const totalVacios = Number(extra.totalVacios) || 0;
+  const topFallidos = fallidos.slice().sort(function (a, b) { return (b.cantidadIntentos || 0) - (a.cantidadIntentos || 0); }).slice(0, 10);
+  const ct = {}, busqDia = {};
+  (extra.busquedas || []).forEach(function (b) {
+    const t = String(b.termino || '').trim();
+    if (t) ct[t] = (ct[t] || 0) + 1;
+    if (b.dia) busqDia[b.dia] = (busqDia[b.dia] || 0) + 1;
+  });
+  const serie = function (o) { return Object.keys(o).sort().map(function (dia) { return { fecha: dia, cantidad: o[dia] }; }); };
+  const den = total + fallidos.length + totalVacios;
+  registrarActividad_('vista', 'dashboard', '', null);
+  return {
+    ok: true,
+    kpis: {
+      totalDocumentos: total, totalFallidos: fallidos.length, totalVacios: totalVacios,
+      tasaExito: den > 0 ? Math.round((total / den) * 100) : 0,
+      pctConCodigo: total > 0 ? Math.round((conCodigo / total) * 100) : 0,
+      pctConEtiqueta: total > 0 ? Math.round((conEtiqueta / total) * 100) : 0,
+      pctConConexion: total > 0 ? Math.round((conConexion / total) * 100) : 0,
+      referenciasCrudas: Object.keys(crudas).length,
+      totalPalabras: palabras
+    },
+    cargaPorDia: serie(porDia),
+    topEtiquetas: ordenarConteo_(ce, 10),
+    topCarpetas: ordenarConteo_(cc, 10),
+    familias: ordenarConteo_(cf, 0),
+    topFallidos: topFallidos,
+    topHubsReferencias: hubs,
+    busquedas: { total: (extra.busquedas || []).length, topTerminos: ordenarConteo_(ct, 10), actividadPorDia: serie(busqDia) }
+  };
+}
+
+/** BDC Sync (Google Drive): pantalla de carga. Va con la sesión de la persona. */
+async function llamarBdcSync_(action, params, reintentando) {
+  const s = await sb.auth.getSession();
+  const session = s && s.data && s.data.session;
+  if (!session) return { ok: false, motivo: 'sin_sesion', error: 'La sesión venció. Volvé a ingresar.' };
+  const body = Object.assign({}, params, { action: action, token: session.access_token, sesionId: SESION_ID });
+  delete body.email;
+  const ms = TIMEOUT_BDC_SYNC[action] || 120000;
+  const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(function () { ctrl.abort(); }, ms) : null;
+  let texto = '';
   try {
-    const r = await llamarBackend('estadoApp', {});
-    if (r && r.ok && r.mantenimiento) mostrarMantenimiento(r.mensaje, true);
-  } catch (err) { /* sin red: el login sigue como siempre */ }
+    const resp = await fetch(BDC_SYNC_URL, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // sin preflight CORS
+      body: JSON.stringify(body), signal: ctrl ? ctrl.signal : undefined
+    });
+    texto = await resp.text();
+    clearTimeout(timer);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const r = JSON.parse(texto);
+    if (action === 'cargarCarpeta' || action === 'reintentarPendiente' || action === 'reintentarVacio' || action === 'cargarComoMarcaManual') listaObra = null;
+    return r;
+  } catch (err) {
+    clearTimeout(timer);
+    console.error('[BDC Sync]', action, err, String(texto).slice(0, 300));
+    // El 404 intermitente de Apps Script: 1 reintento, solo en consultas (una carga no se repite sola)
+    if (!reintentando && (action === 'explorarCarpeta' || action === 'previsualizarEtiquetasAuto')) {
+      await new Promise(function (r) { setTimeout(r, 700); });
+      return llamarBdcSync_(action, params, true);
+    }
+    throw ctrl && ctrl.signal.aborted
+      ? new Error('BDC Sync no respondió en ' + Math.round(ms / 1000) + ' s.')
+      : new Error('No se pudo conectar con BDC Sync (Google).');
+  }
 }
 
 /**
- * v6.2.0 — registro de actividad desde el frontend (action
- * registrarEvento, lista blanca en el backend). Fire-and-forget: no se
- * espera la respuesta y cualquier error se ignora — registrar nunca
- * frena ni rompe lo que hace el usuario. keepalive permite que el aviso
- * salga aunque el click abra otra pestaña o se cierre la página.
+ * Actividad de uso en goe_actividad (app bdc). La base fija quién y cuándo.
+ * Fire-and-forget: nunca frena ni rompe lo que hace el usuario.
  */
-function registrarEvento(evento, objeto, resultado, detalle) {
-  if (!emailActual) return;
+function registrarActividad_(evento, objeto, resultado, detalle) {
   try {
-    fetch(BDC_GAS_URL, {
-      method   : 'POST',
-      headers  : { 'Content-Type': 'text/plain;charset=utf-8' },
-      keepalive: true,
-      body     : JSON.stringify({
-        action: 'registrarEvento', sesionId: SESION_ID, email: emailActual,
-        obraId: obraActual ? obraActual.obraId : '', nombreObra: obraActual ? obraActual.nombreObra : '',
-        evento: evento, objeto: objeto == null ? '' : objeto, resultado: resultado == null ? '' : resultado,
-        detalle: detalle || {}
-      })
-    }).catch(function () {});
+    if (!sb || !emailActual || !navigator.onLine) return;
+    sb.from('goe_actividad').insert({
+      app: 'bdc', obra_id: obraActual ? obraActual.obraId : null, sesion_id: SESION_ID, evento: evento,
+      objeto: objeto == null || objeto === '' ? null : String(objeto).slice(0, 2000),
+      resultado: resultado == null || resultado === '' ? null : String(resultado).slice(0, 500),
+      detalle: detalle || null
+    }).then(function (r) { if (r.error) console.warn('[actividad]', r.error.message); }, function () { });
   } catch (err) { /* nunca frena la UI */ }
+}
+
+/** v6.2.0 — eventos que solo ve el frontend (misma lista blanca que v6). */
+const EVENTOS_FRONTEND = ['seleccion_obra', 'abrir_documento', 'buscar_nodo', 'ver_nodo', 'ver_comentarios', 'filtro'];
+function registrarEvento(evento, objeto, resultado, detalle) {
+  if (EVENTOS_FRONTEND.indexOf(evento) === -1) return;
+  registrarActividad_(evento, objeto, resultado, detalle || {});
 }
 
 // ── SESIÓN (localStorage) ───────────────────────────────────
@@ -2937,20 +3301,16 @@ function sesionVencidaLocalmente(sesion) {
 }
 
 // ── BOOT ─────────────────────────────────────────────────────
+// v7.0.0 — Login con Supabase Auth (código por mail), mismas 5 pantallas
+// de pwa_pin. La sesión la guarda Supabase en este dispositivo (no vence:
+// se renueva sola); "Cerrar sesión" la cierra solo acá.
 function boot() {
   document.addEventListener('keydown', onKeydownGlobal);
-
   const sesion = leerSesion();
-  if (!sesion) {
-    mostrarPantalla('login-screen');
-    mostrarPasoLogin('email');
-    chequearMantenimientoEnLogin(); // v6.3.0
-    return;
-  }
-
-  // Con sesión guardada (vencida o no) siempre se revalida contra
-  // backend antes de mostrar nada — nunca "optimista" (guía §5).
   mostrarPantalla('login-screen');
+  if (!sb) { mostrarPasoLogin('sinconexion'); return; }
+  if (!sesion) { mostrarPasoLogin('email'); return; }
+  // Con sesión guardada siempre se revalida antes de mostrar nada (guía §5)
   mostrarPasoLogin('validando');
   validarSesionGuardada();
 }
@@ -2958,67 +3318,72 @@ function boot() {
 async function validarSesionGuardada() {
   const sesion = leerSesion();
   if (!sesion) { mostrarPasoLogin('email'); return; }
-
   mostrarPasoLogin('validando');
   try {
     const r = await llamarBackend('validarSesion', { email: sesion.email });
     if (r.ok) {
-      guardarSesion(sesion.email, r.nombreApellido, r.noExpira);
-      emailActual = sesion.email;
+      guardarSesion(r.email || sesion.email, r.nombreApellido, true);
+      emailActual = r.email || sesion.email;
+      registrarActividad_('apertura', '', 'OK', { origen: 'sesion_guardada' });
       continuarDespuesDeLogin();
       return;
     }
-    // ok:false con motivo -> rechazo real (guía §5)
+    if (r.motivo === 'sin_sesion') {   // no hay sesión de Supabase (o venció): pedir código de nuevo
+      borrarSesion();
+      document.getElementById('input-email').value = sesion.email || '';
+      mostrarPasoLogin('email');
+      return;
+    }
     borrarSesion();
     mostrarLoginConError(mensajePorMotivo(r.motivo));
   } catch (err) {
-    // falla de red -> no es rechazo de auth, no se borra la sesión
-    if (sesionVencidaLocalmente(sesion)) {
-      // sin red y ya vencida localmente: no hay forma de confirmar nada, pide login
-      mostrarPasoLogin('email');
-    } else {
-      mostrarPasoLogin('sinconexion');
-    }
+    mostrarPasoLogin('sinconexion');   // falla de red: no es un rechazo, la sesión no se borra
   }
 }
 
-// ── LOGIN — Paso 1: pedir email / solicitar PIN ─────────────
+// ── LOGIN — Paso 1: pedir email / enviar código ─────────────
 async function onEnviarCodigo(esReenvio) {
   const btn = esReenvio ? document.getElementById('btn-reenviar') : document.getElementById('btn-enviar-codigo');
   const errorBox = document.getElementById(esReenvio ? 'codigo-error' : 'email-error');
   ocultarError(errorBox);
-
-  let email = esReenvio ? emailActual : document.getElementById('input-email').value.trim();
+  const email = (esReenvio ? emailActual : document.getElementById('input-email').value.trim()).toLowerCase();
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     mostrarError(document.getElementById('email-error'), 'Ingresá un email válido.');
     return;
   }
-  emailActual = email.toLowerCase();
-
+  if (!sb) { mostrarError(errorBox, 'No pudimos conectar. Revisá tu conexión e intentá de nuevo.'); return; }
+  emailActual = email;
   btn.disabled = true;
   const textoOriginal = btn.textContent;
   btn.textContent = 'Enviando...';
-
   try {
-    const r = await llamarBackend('solicitarPIN', { email: emailActual });
-    if (r.ok) {
+    const { error } = await sb.auth.signInWithOtp({ email: emailActual, options: { shouldCreateUser: true, emailRedirectTo: REDIRECT_MAIL } });
+    if (error) {
+      console.error('[signInWithOtp]', error);
+      mostrarError(errorBox, traducirErrorAuth(error));
+      if (/rate limit|too many|security purposes/i.test(error.message || '')) { iniciarCooldownReenvio(); mostrarPasoLogin('codigo'); }
+    } else {
       document.getElementById('codigo-desc').textContent = 'Enviado a ' + emailActual + '. Vence en 10 minutos.';
       document.getElementById('input-pin').value = '';
       mostrarPasoLogin('codigo');
       iniciarCooldownReenvio();
-    } else {
-      mostrarError(errorBox, mensajePorMotivo(r.motivo, r.restanteSegundos));
-      if (r.motivo === 'cooldown' && r.restanteSegundos) {
-        iniciarCooldownReenvio(r.restanteSegundos);
-        mostrarPasoLogin('codigo');
-      }
     }
   } catch (err) {
     mostrarError(errorBox, 'No pudimos conectar. Revisá tu conexión e intentá de nuevo.');
   } finally {
     btn.disabled = false;
     btn.textContent = textoOriginal;
+    if (esReenvio && cooldownInterval) btn.disabled = true;   // el contador del reenvío sigue mandando
   }
+}
+
+function traducirErrorAuth(err) {
+  const m = (err && (err.message || err.msg)) || String(err);
+  if (/rate limit|too many|security purposes/i.test(m)) return 'Esperá un minuto antes de pedir un código nuevo.';
+  if (/expired|invalid/i.test(m)) return 'Código incorrecto o vencido. Pedí uno nuevo si hace falta.';
+  if (/fetch|network/i.test(m)) return 'No pudimos conectar. Revisá tu conexión e intentá de nuevo.';
+  if (/signups? not allowed|not allowed/i.test(m)) return 'Ese email no está habilitado para BDC. Pedile al administrador que te habilite en GOE Admin.';
+  return m;
 }
 
 function iniciarCooldownReenvio(segundosIniciales) {
@@ -3026,11 +3391,11 @@ function iniciarCooldownReenvio(segundosIniciales) {
   let restante = segundosIniciales || COOLDOWN_SEG;
   btn.disabled = true;
   clearInterval(cooldownInterval);
-
   function tick() {
     btn.textContent = 'Reenviar código (' + restante + 's)';
     if (restante <= 0) {
       clearInterval(cooldownInterval);
+      cooldownInterval = null;
       btn.disabled = false;
       btn.textContent = 'Reenviar código';
       return;
@@ -3046,26 +3411,32 @@ async function onValidarCodigo() {
   const btn = document.getElementById('btn-validar-codigo');
   const errorBox = document.getElementById('codigo-error');
   ocultarError(errorBox);
-
-  const pin = document.getElementById('input-pin').value.trim();
-  if (!/^\d{6}$/.test(pin)) {
+  const pin = document.getElementById('input-pin').value.replace(/\D/g, '');
+  if (!/^\d{6,10}$/.test(pin)) {
     mostrarError(errorBox, 'El código tiene 6 dígitos.');
     return;
   }
-
   btn.disabled = true;
   const textoOriginal = btn.textContent;
   btn.textContent = 'Validando...';
-
   try {
-    const r = await llamarBackend('validarPIN', { email: emailActual, pin: pin });
-    if (r.ok) {
-      guardarSesion(emailActual, r.nombreApellido, r.noExpira);
-      clearInterval(cooldownInterval);
-      continuarDespuesDeLogin();
-    } else {
-      mostrarError(errorBox, mensajePorMotivo(r.motivo, r.restantes));
+    const { error } = await sb.auth.verifyOtp({ email: emailActual, token: pin, type: 'email' });
+    if (error) {
+      console.error('[verifyOtp]', error);
+      mostrarError(errorBox, traducirErrorAuth(error));
+      return;
     }
+    const r = await llamarBackend('validarSesion', { email: emailActual });
+    if (!r.ok) {
+      try { await sb.auth.signOut({ scope: 'local' }); } catch (e) { /* sin red */ }
+      mostrarLoginConError(mensajePorMotivo(r.motivo));
+      return;
+    }
+    guardarSesion(emailActual, r.nombreApellido, true);
+    clearInterval(cooldownInterval);
+    cooldownInterval = null;
+    registrarActividad_('login', '', 'OK', { noExpira: true });
+    continuarDespuesDeLogin();
   } catch (err) {
     mostrarError(errorBox, 'No pudimos conectar. Revisá tu conexión e intentá de nuevo.');
   } finally {
@@ -3086,7 +3457,7 @@ function mostrarLoginConError(msg) {
 
 function mensajePorMotivo(motivo, extra) {
   const mensajes = {
-    no_encontrado    : 'No encontramos ese email en el sistema.',
+    no_encontrado    : 'Ese email no está habilitado para BDC. Pedile al administrador que te habilite en GOE Admin.',
     inactivo         : 'Tu acceso está desactivado. Contactá al administrador.',
     bloqueado        : 'Tu cuenta quedó bloqueada por intentos fallidos. Contactá al administrador.',
     pin_incorrecto   : 'Código incorrecto.' + (extra ? ' Te quedan ' + extra + ' intentos.' : ''),
@@ -3094,7 +3465,8 @@ function mensajePorMotivo(motivo, extra) {
     pin_vencido      : 'El código venció. Pedí uno nuevo.',
     sin_pin_generado : 'Todavía no pediste un código. Solicitá uno primero.',
     cooldown         : 'Esperá ' + (extra || COOLDOWN_SEG) + ' segundos antes de pedir un código nuevo.',
-    error_envio_mail : 'No pudimos enviar el mail. Reintentá en un momento.'
+    error_envio_mail : 'No pudimos enviar el mail. Reintentá en un momento.',
+    sin_sesion       : 'La sesión venció. Volvé a ingresar.'
   };
   return mensajes[motivo] || 'Ocurrió un error. Intentá de nuevo.';
 }
@@ -5070,7 +5442,8 @@ function abrirSessionDialog() {
 function cerrarSessionDialog() {
   document.getElementById('session-dialog-overlay').classList.remove('visible');
 }
-function cerrarSesion() {
+async function cerrarSesion() {
+  try { if (sb) await sb.auth.signOut({ scope: 'local' }); } catch (e) { console.warn('[signOut]', e); }   // v7.0.0 — solo este dispositivo
   borrarSesion();
   cerrarSessionDialog();
   location.reload();
@@ -5616,7 +5989,9 @@ function renderRegistroCarga() {
         (r.documentosVacios ? ', ' + r.documentosVacios + ' vacíos' : '') +
         (r.documentosFallidos ? ', ' + r.documentosFallidos + ' con error' : '');
       if (e.estado === 'incompleto') {
-        resumen += ' — se esperaban ' + e.esperados + '. Puede haberse cortado por tiempo: volvé a cargar esta misma carpeta.';
+        resumen += ' — se esperaban ' + e.esperados + '. ' + (r.cortado
+          ? 'Se cortó por tiempo (lo procesado quedó guardado): volvé a apretar "Cargar (solo lo nuevo)" sobre esta carpeta.'
+          : 'Puede haberse cortado por tiempo: volvé a cargar esta misma carpeta.');
       }
     }
 
